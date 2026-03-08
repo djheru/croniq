@@ -3,7 +3,7 @@
  * Run: npx tsx scripts/seed.ts
  */
 
-const BASE = "https://croniq.local/";
+const BASE = process.env.CRONIQ_URL ?? "http://localhost:3001/api";
 
 const examples = [
   {

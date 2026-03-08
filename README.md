@@ -320,7 +320,10 @@ cat > bedrock-policy.json << 'EOF'
     {
       "Effect": "Allow",
       "Action": "bedrock:InvokeModel",
-      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/*"
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:inference-profile/*"
+      ]
     }
   ]
 }
@@ -453,7 +456,7 @@ ssh kali "chmod 600 ~/.aws/pi.key && pm2 restart croniq"
 | `PORT`             | `3001`                                       | HTTP server port                  |
 | `DATA_DIR`         | `./data`                                     | SQLite database directory         |
 | `AWS_REGION`       | `us-east-1`                                  | AWS region for Bedrock            |
-| `BEDROCK_MODEL_ID` | `us.anthropic.claude-opus-4-6-20250219-v1:0` | Bedrock model to use for analysis |
+| `BEDROCK_MODEL_ID` | `us.anthropic.claude-opus-4-6-v1` | Bedrock model to use for analysis |
 
 ---
 

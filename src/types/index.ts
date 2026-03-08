@@ -91,6 +91,8 @@ export interface Job {
   status: JobStatus;
   lastRunAt?: string;
   nextRunAt?: string;
+  analysisPrompt?: string;
+  analysisSchedule?: string;     // cron expression, default '0 * * * *'
   createdAt: string;
   updatedAt: string;
 }
@@ -116,6 +118,18 @@ export interface Run {
   error?: string;
   changed: boolean;          // true if result differs from previous run
   resultHash?: string;
+}
+
+// ─── Analysis ────────────────────────────────────────────────────────────────
+
+export interface Analysis {
+  id: string;
+  jobId: string;
+  prompt: string;
+  response: string;
+  runIds: string[];
+  durationMs?: number;
+  createdAt: string;
 }
 
 // ─── API Responses ────────────────────────────────────────────────────────────

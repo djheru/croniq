@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { api, type Job, type Run, type RunStats } from '../api';
+import { api, type Job, type Run, type RunStats, type Analysis } from '../api';
 import { Badge, Button, Card, Empty, Spinner } from './ui';
 
 function outcomeVariant(o: string): 'success' | 'danger' | 'warning' {
@@ -19,6 +19,9 @@ export function JobDetail({ job, onEdit, onBack }: {
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
+  const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<Analysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -26,6 +29,10 @@ export function JobDetail({ job, onEdit, onBack }: {
       const res = await api.getRuns(job.id);
       setRuns(res.data);
       setStats(res.stats);
+      if (job.analysisPrompt) {
+        const analysisRes = await api.getAnalyses(job.id);
+        setAnalyses(analysisRes.data);
+      }
     } finally {
       setLoading(false);
     }
@@ -40,6 +47,16 @@ export function JobDetail({ job, onEdit, onBack }: {
       setTimeout(load, 2000);
     } finally {
       setTriggering(false);
+    }
+  }
+
+  async function triggerAnalysis() {
+    setAnalyzing(true);
+    try {
+      await api.triggerAnalysis(job.id);
+      setTimeout(load, 5000);
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -148,6 +165,65 @@ export function JobDetail({ job, onEdit, onBack }: {
           )}
         </Card>
       </div>
+
+      {/* Analysis section */}
+      {job.analysisPrompt && (
+        <div style={{ marginTop: 20 }}>
+          <Card>
+            <div style={{
+              padding: '12px 16px', borderBottom: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+                LLM Analysis
+              </span>
+              <Button size="sm" variant="ghost" onClick={triggerAnalysis} disabled={analyzing}>
+                {analyzing ? <Spinner /> : '⚡'} Analyze now
+              </Button>
+            </div>
+
+            {analyses.length === 0 ? (
+              <Empty message="No analyses yet — waiting for scheduled run or trigger manually" />
+            ) : (
+              <div>
+                {/* Analysis selector */}
+                <div style={{ display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                  {analyses.slice(0, 10).map(a => (
+                    <button key={a.id} onClick={() => setSelectedAnalysis(a)} style={{
+                      padding: '3px 8px', fontSize: 10, borderRadius: 4, cursor: 'pointer',
+                      background: selectedAnalysis?.id === a.id ? 'var(--accent-dim)' : 'transparent',
+                      border: `1px solid ${selectedAnalysis?.id === a.id ? 'var(--accent)' : 'var(--border)'}`,
+                      color: selectedAnalysis?.id === a.id ? 'var(--accent)' : 'var(--text-1)',
+                      fontFamily: 'var(--font-mono)',
+                    }}>
+                      {format(new Date(a.createdAt), 'MMM d, HH:mm')}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Analysis content */}
+                <div style={{ padding: 16, maxHeight: 400, overflow: 'auto' }}>
+                  {(selectedAnalysis ?? analyses[0]) && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
+                        {(selectedAnalysis ?? analyses[0]).durationMs}ms
+                        {' \u00b7 '}
+                        {(selectedAnalysis ?? analyses[0]).runIds.length} runs analyzed
+                      </div>
+                      <pre style={{
+                        fontSize: 13, color: 'var(--text-0)', whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word', fontFamily: 'var(--font-sans)', lineHeight: 1.6,
+                      }}>
+                        {(selectedAnalysis ?? analyses[0]).response}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

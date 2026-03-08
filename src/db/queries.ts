@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { db } from './index.js';
-import type { Job, Run, CreateJobInput, UpdateJobInput, RunOutcome } from '../types/index.js';
+import type { Job, Run, Analysis, CreateJobInput, UpdateJobInput, RunOutcome } from '../types/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,8 @@ function toJob(row: Record<string, unknown>): Job {
     status: row.status as Job['status'],
     lastRunAt: row.last_run_at as string | undefined,
     nextRunAt: row.next_run_at as string | undefined,
+    analysisPrompt: row.analysis_prompt as string | undefined,
+    analysisSchedule: row.analysis_schedule as string | undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -53,9 +55,11 @@ export function hashResult(result: unknown): string {
 
 const insertJob = db.prepare(`
   INSERT INTO jobs (id, name, description, schedule, collector_config, output_format,
-    tags, notify_on_change, webhook_url, retries, timeout_ms, status, created_at, updated_at)
+    tags, notify_on_change, webhook_url, retries, timeout_ms, analysis_prompt, analysis_schedule,
+    status, created_at, updated_at)
   VALUES (@id, @name, @description, @schedule, @collector_config, @output_format,
-    @tags, @notify_on_change, @webhook_url, @retries, @timeout_ms, 'active', @created_at, @updated_at)
+    @tags, @notify_on_change, @webhook_url, @retries, @timeout_ms, @analysis_prompt, @analysis_schedule,
+    'active', @created_at, @updated_at)
 `);
 
 const updateJob = db.prepare(`
@@ -63,7 +67,9 @@ const updateJob = db.prepare(`
     name = @name, description = @description, schedule = @schedule,
     collector_config = @collector_config, output_format = @output_format,
     tags = @tags, notify_on_change = @notify_on_change, webhook_url = @webhook_url,
-    retries = @retries, timeout_ms = @timeout_ms, updated_at = @updated_at
+    retries = @retries, timeout_ms = @timeout_ms,
+    analysis_prompt = @analysis_prompt, analysis_schedule = @analysis_schedule,
+    updated_at = @updated_at
   WHERE id = @id
 `);
 
@@ -82,6 +88,8 @@ export function createJob(input: CreateJobInput): Job {
     webhook_url: input.webhookUrl ?? null,
     retries: input.retries,
     timeout_ms: input.timeoutMs,
+    analysis_prompt: input.analysisPrompt ?? null,
+    analysis_schedule: input.analysisSchedule ?? '0 * * * *',
     created_at: now,
     updated_at: now,
   });
@@ -104,6 +112,8 @@ export function updateJobById(id: string, input: UpdateJobInput): Job | null {
     webhook_url: merged.webhookUrl ?? null,
     retries: merged.retries,
     timeout_ms: merged.timeoutMs,
+    analysis_prompt: merged.analysisPrompt ?? null,
+    analysis_schedule: merged.analysisSchedule ?? '0 * * * *',
     updated_at: new Date().toISOString(),
   });
   return getJob(id);
@@ -202,4 +212,47 @@ export function getRunStats(jobId: string): {
     failure: row.failure ?? 0,
     avgDurationMs: Math.round(row.avg_duration_ms ?? 0),
   };
+}
+
+// ─── Analyses ────────────────────────────────────────────────────────────────
+
+function toAnalysis(row: Record<string, unknown>): Analysis {
+  return {
+    id: row.id as string,
+    jobId: row.job_id as string,
+    prompt: row.prompt as string,
+    response: row.response as string,
+    runIds: JSON.parse(row.run_ids as string),
+    durationMs: row.duration_ms as number | undefined,
+    createdAt: row.created_at as string,
+  };
+}
+
+export function createAnalysis(params: {
+  jobId: string;
+  prompt: string;
+  response: string;
+  runIds: string[];
+  durationMs: number;
+}): Analysis {
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO analyses (id, job_id, prompt, response, run_ids, duration_ms, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, params.jobId, params.prompt, params.response, JSON.stringify(params.runIds), params.durationMs, new Date().toISOString());
+  return listAnalyses(params.jobId, 1)[0];
+}
+
+export function listAnalyses(jobId: string, limit = 20): Analysis[] {
+  const rows = db.prepare(`
+    SELECT * FROM analyses WHERE job_id = ? ORDER BY created_at DESC LIMIT ?
+  `).all(jobId, limit) as Record<string, unknown>[];
+  return rows.map(toAnalysis);
+}
+
+export function getLatestAnalysis(jobId: string): Analysis | null {
+  const row = db.prepare(`
+    SELECT * FROM analyses WHERE job_id = ? ORDER BY created_at DESC LIMIT 1
+  `).get(jobId) as Record<string, unknown> | undefined;
+  return row ? toAnalysis(row) : null;
 }

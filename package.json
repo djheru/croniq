@@ -11,6 +11,7 @@
     "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.750.0",
     "better-sqlite3": "^9.4.3",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",

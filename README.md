@@ -201,23 +201,259 @@ Compatible with Slack incoming webhooks, Discord webhooks, n8n, Make, etc.
 
 Given the serverless/AWS background, easy extensions:
 
-| Feature | AWS Service |
-|---|---|
-| Archive all results long-term | S3 + scheduled Lambda export |
-| AI summarization of scraped text | Bedrock (Claude) |
-| Serverless job offload (heavy scrapes) | Lambda + EventBridge |
-| Alerting | SNS → email/SMS |
-| Historical time-series | Timestream |
-| Auth for the dashboard | Cognito |
+| Feature                                | AWS Service                  |
+| -------------------------------------- | ---------------------------- |
+| Archive all results long-term          | S3 + scheduled Lambda export |
+| AI summarization of scraped text       | Bedrock (Claude)             |
+| Serverless job offload (heavy scrapes) | Lambda + EventBridge         |
+| Alerting                               | SNS → email/SMS              |
+| Historical time-series                 | Timestream                   |
+| Auth for the dashboard                 | Cognito                      |
+
+---
+
+## LLM Analysis (Optional)
+
+Jobs can optionally include an `analysisPrompt` and `analysisSchedule`. When configured, Croniq queries Claude on AWS Bedrock with the last 5 run results and your prompt on a separate schedule (default: hourly).
+
+### AWS Credentials via IAM Roles Anywhere (X.509)
+
+This avoids storing any AWS access keys on the Pi. Instead, the Pi presents an X.509 certificate to assume an IAM role and receive short-lived credentials.
+
+#### Step 1: Create a Private CA (on your Mac)
+
+```bash
+# Create a directory for CA materials
+mkdir -p ~/.croniq-ca && cd ~/.croniq-ca
+
+# Generate CA private key
+openssl genrsa -out ca.key 4096
+
+# Create OpenSSL config with CA basic constraints
+cat > ca.cnf << 'EOF'
+[req]
+distinguished_name = req_dn
+x509_extensions = v3_ca
+prompt = no
+
+[req_dn]
+CN = Croniq Pi CA
+O = Home Lab
+
+[v3_ca]
+basicConstraints = critical, CA:TRUE
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+EOF
+
+# Generate CA certificate (valid 10 years)
+openssl req -new -x509 -days 3650 -key ca.key -out ca.crt -config ca.cnf
+
+# Verify CA basic constraints
+openssl x509 -in ca.crt -noout -text | grep -A1 "Basic Constraints"
+# Should show: CA:TRUE
+```
+
+#### Step 2: Issue a Client Certificate for the Pi
+
+```bash
+cd ~/.croniq-ca
+
+# Generate Pi private key
+openssl genrsa -out pi.key 2048
+
+# Generate certificate signing request
+openssl req -new -key pi.key -out pi.csr \
+  -subj "/CN=kali-pi4/O=Home Lab"
+
+# Create end-entity extensions config
+cat > pi.cnf << 'EOF'
+[v3_end]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+EOF
+
+# Sign with the CA (valid 1 year), including required extensions
+openssl x509 -req -days 365 -in pi.csr -CA ca.crt -CAkey ca.key \
+  -CAcreateserial -out pi.crt -extfile pi.cnf -extensions v3_end
+
+# Verify chain and extensions
+openssl verify -CAfile ca.crt pi.crt
+openssl x509 -in pi.crt -noout -text | grep -A5 "X509v3"
+```
+
+#### Step 3: Create IAM Role for the Pi
+
+```bash
+# Create the trust policy — Roles Anywhere will fill in the principal later
+cat > trust-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "rolesanywhere.amazonaws.com"
+      },
+      "Action": [
+        "sts:AssumeRole",
+        "sts:TagSession",
+        "sts:SetSourceIdentity"
+      ]
+    }
+  ]
+}
+EOF
+
+# Create the role
+aws iam create-role \
+  --role-name CroniqPiRole \
+  --assume-role-policy-document file://trust-policy.json
+
+# Attach Bedrock invoke permission
+cat > bedrock-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/*"
+    }
+  ]
+}
+EOF
+
+aws iam put-role-policy \
+  --role-name CroniqPiRole \
+  --policy-name BedrockInvoke \
+  --policy-document file://bedrock-policy.json
+```
+
+#### Step 4: Set Up IAM Roles Anywhere
+
+```bash
+# Create trust anchor (registers your CA with AWS)
+aws rolesanywhere create-trust-anchor \
+  --name croniq-pi-ca \
+  --source "sourceType=CERTIFICATE_BUNDLE,sourceData={x509CertificateData=$(cat ~/.croniq-ca/ca.crt)}" \
+  --region us-east-1
+
+# Note the trustAnchorId from the output, then:
+TRUST_ANCHOR_ID=149bd37d-bae5-45de-93ff-647e0a07f05f
+
+# Enable the trust anchor (created disabled by default)
+aws rolesanywhere enable-trust-anchor \
+  --trust-anchor-id "$TRUST_ANCHOR_ID" \
+  --region us-east-1
+
+# Get the role ARN
+ROLE_ARN=$(aws iam get-role --role-name CroniqPiRole --query 'Role.Arn' --output text)
+
+# Create a profile (maps certificates to the IAM role)
+aws rolesanywhere create-profile \
+  --name croniq-pi-profile \
+  --role-arns "$ROLE_ARN" \
+  --region us-east-1
+
+# Note the profileId from the output:
+PROFILE_ID="8edb6bef-9b5e-4b5e-aa44-bf8569f15731"
+
+# Enable the profile (created disabled by default)
+aws rolesanywhere enable-profile \
+  --profile-id "$PROFILE_ID" \
+  --region us-east-1
+```
+
+#### Step 5: Install the Credential Helper on the Pi
+
+```bash
+# Copy certs to Pi
+scp ~/.croniq-ca/pi.crt ~/.croniq-ca/pi.key kali:/home/kali/.aws/
+scp ~/.croniq-ca/ca.crt kali:/home/kali/.aws/ca.crt
+
+# SSH to Pi
+ssh kali
+
+# Secure the key
+chmod 600 ~/.aws/pi.key
+
+# Download the AWS signing helper (ARM64)
+curl -Lo /tmp/aws_signing_helper \
+  "https://rolesanywhere.amazonaws.com/releases/1.4.0/X86_64/Linux/aws_signing_helper"
+
+# For ARM64 Pi, use:
+curl -Lo /tmp/aws_signing_helper \
+  "https://rolesanywhere.amazonaws.com/releases/1.4.0/Aarch64/Linux/aws_signing_helper"
+
+chmod +x /tmp/aws_signing_helper
+sudo mv /tmp/aws_signing_helper /usr/local/bin/
+
+# Verify
+aws_signing_helper version
+```
+
+#### Step 6: Configure AWS Credential Process
+
+On the Pi, create/edit `~/.aws/config`:
+
+```ini
+[default]
+region = us-east-1
+credential_process = aws_signing_helper credential-process \
+  --certificate /home/kali/.aws/pi.crt \
+  --private-key /home/kali/.aws/pi.key \
+  --trust-anchor-arn arn:aws:rolesanywhere:us-east-1:190423078218:trust-anchor/149bd37d-bae5-45de-93ff-647e0a07f05f \
+  --profile-arn arn:aws:rolesanywhere:us-east-1:190423078218:profile/8edb6bef-9b5e-4b5e-aa44-bf8569f15731 \
+  --role-arn arn:aws:iam::190423078218:role/CroniqPiRole
+```
+
+Replace `190423078218`, `149bd37d-bae5-45de-93ff-647e0a07f05f`, and `8edb6bef-9b5e-4b5e-aa44-bf8569f15731` with your values.
+
+#### Step 7: Verify
+
+```bash
+# On the Pi — should return your assumed role identity
+aws_signing_helper credential-process \
+  --certificate /home/kali/.aws/pi.crt \
+  --private-key /home/kali/.aws/pi.key \
+  --intermediates /home/kali/.aws/ca.crt \
+  --trust-anchor-arn arn:aws:rolesanywhere:us-east-1:190423078218:trust-anchor/149bd37d-bae5-45de-93ff-647e0a07f05f \
+  --profile-arn arn:aws:rolesanywhere:us-east-1:190423078218:profile/8edb6bef-9b5e-4b5e-aa44-bf8569f15731 \
+  --role-arn arn:aws:iam::190423078218:role/CroniqPiRole
+
+# Restart Croniq so it picks up the credential process
+pm2 restart croniq
+```
+
+The AWS SDK in Croniq will automatically use the credential process from `~/.aws/config` — no code changes needed.
+
+#### Certificate Renewal
+
+The Pi certificate expires after 1 year. To renew:
+
+```bash
+# On your Mac
+cd ~/.croniq-ca
+openssl genrsa -out pi.key 2048
+openssl req -new -key pi.key -out pi.csr -subj "/CN=kali-pi4/O=Home Lab"
+openssl x509 -req -days 365 -in pi.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out pi.crt
+scp pi.crt pi.key kali:/home/kali/.aws/
+ssh kali "chmod 600 ~/.aws/pi.key && pm2 restart croniq"
+```
 
 ---
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3001` | HTTP server port |
-| `DATA_DIR` | `./data` | SQLite database directory |
+| Variable           | Default                                      | Description                       |
+| ------------------ | -------------------------------------------- | --------------------------------- |
+| `PORT`             | `3001`                                       | HTTP server port                  |
+| `DATA_DIR`         | `./data`                                     | SQLite database directory         |
+| `AWS_REGION`       | `us-east-1`                                  | AWS region for Bedrock            |
+| `BEDROCK_MODEL_ID` | `us.anthropic.claude-opus-4-6-20250219-v1:0` | Bedrock model to use for analysis |
 
 ---
 

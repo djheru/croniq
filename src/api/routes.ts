@@ -3,9 +3,11 @@ import { z } from 'zod';
 import {
   listJobs, getJob, createJob, updateJobById, deleteJob,
   listRuns, getLastRun, getRunStats, setJobStatus,
+  listAnalyses, getLatestAnalysis,
 } from '../db/queries.js';
 import { scheduleJob, unscheduleJob, rescheduleJob, getScheduledIds } from '../jobs/scheduler.js';
 import { runJob } from '../jobs/runner.js';
+import { runAnalysis } from '../jobs/analyzer.js';
 
 export const router = Router();
 
@@ -71,6 +73,8 @@ const CreateJobSchema = z.object({
   collectorConfig: CollectorConfigSchema,
   outputFormat: z.enum(['json','text','csv','list']).default('json'),
   tags: z.array(z.string()).default([]),
+  analysisPrompt: z.string().optional(),
+  analysisSchedule: z.string().default('0 * * * *'),
   notifyOnChange: z.boolean().default(false),
   webhookUrl: z.string().url().optional(),
   retries: z.number().int().min(0).max(5).default(2),
@@ -154,6 +158,28 @@ router.get('/jobs/:id/runs/latest', (req, res) => {
   const run = getLastRun(req.params.id);
   if (!run) return res.status(404).json({ error: 'No runs yet' });
   res.json({ data: run });
+});
+
+// ─── Analyses ────────────────────────────────────────────────────────────────
+
+router.get('/jobs/:id/analyses', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+  const analyses = listAnalyses(req.params.id, limit);
+  res.json({ data: analyses });
+});
+
+router.get('/jobs/:id/analyses/latest', (req, res) => {
+  const analysis = getLatestAnalysis(req.params.id);
+  if (!analysis) return res.status(404).json({ error: 'No analyses yet' });
+  res.json({ data: analysis });
+});
+
+router.post('/jobs/:id/analyze', async (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Not found' });
+  if (!job.analysisPrompt) return res.status(400).json({ error: 'Job has no analysis prompt' });
+  runAnalysis(job).catch(console.error);
+  res.json({ data: { triggered: true } });
 });
 
 // ─── Health ───────────────────────────────────────────────────────────────────

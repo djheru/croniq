@@ -28,6 +28,11 @@ export const api = {
   // Runs
   getRuns: (jobId: string) => request<{ data: Run[]; stats: RunStats }>(`/jobs/${jobId}/runs`),
   getLatestRun: (jobId: string) => request<{ data: Run }>(`/jobs/${jobId}/runs/latest`),
+
+  // Analyses
+  getAnalyses: (jobId: string) => request<{ data: Analysis[] }>(`/jobs/${jobId}/analyses`),
+  getLatestAnalysis: (jobId: string) => request<{ data: Analysis }>(`/jobs/${jobId}/analyses/latest`),
+  triggerAnalysis: (jobId: string) => request(`/jobs/${jobId}/analyze`, { method: 'POST' }),
 };
 
 export interface Job {
@@ -42,6 +47,8 @@ export interface Job {
   webhookUrl?: string;
   retries: number;
   timeoutMs: number;
+  analysisPrompt?: string;
+  analysisSchedule?: string;
   status: 'active' | 'paused' | 'error';
   lastRunAt?: string;
   nextRunAt?: string;
@@ -61,6 +68,16 @@ export interface Run {
   error?: string;
   changed: boolean;
   resultHash?: string;
+}
+
+export interface Analysis {
+  id: string;
+  jobId: string;
+  prompt: string;
+  response: string;
+  runIds: string[];
+  durationMs?: number;
+  createdAt: string;
 }
 
 export interface RunStats {

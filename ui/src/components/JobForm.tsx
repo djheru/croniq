@@ -71,6 +71,8 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
   const [webhookUrl, setWebhookUrl] = useState(initial?.webhookUrl ?? '');
   const [retries, setRetries] = useState(initial?.retries ?? 2);
   const [timeoutMs, setTimeoutMs] = useState(initial?.timeoutMs ?? 30000);
+  const [analysisPrompt, setAnalysisPrompt] = useState(initial?.analysisPrompt ?? '');
+  const [analysisSchedule, setAnalysisSchedule] = useState(initial?.analysisSchedule ?? '0 * * * *');
   const [configError, setConfigError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -97,6 +99,8 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
         notifyOnChange,
         webhookUrl: webhookUrl || undefined,
+        analysisPrompt: analysisPrompt || undefined,
+        analysisSchedule: analysisSchedule || '0 * * * *',
         retries, timeoutMs,
       });
     } finally {
@@ -209,6 +213,45 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         <label htmlFor="notify" style={{ cursor: 'pointer', color: 'var(--text-1)', fontSize: 13 }}>
           Notify via webhook when result changes
         </label>
+      </div>
+
+      {/* Analysis */}
+      <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
+        <div style={{ ...fieldStyle }}>
+          <label style={labelStyle}>Analysis Prompt (optional — enables LLM analysis)</label>
+          <textarea
+            value={analysisPrompt}
+            onChange={e => setAnalysisPrompt(e.target.value)}
+            rows={3}
+            style={{ width: '100%', resize: 'vertical', fontSize: 12 }}
+            placeholder="e.g. Summarize the price trend. Is it trending up, down, or sideways?"
+          />
+        </div>
+
+        {analysisPrompt && (
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Analysis Schedule (cron)</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              {[
+                { label: 'Hourly', value: '0 * * * *' },
+                { label: 'Every 6h', value: '0 */6 * * *' },
+                { label: 'Daily 9am', value: '0 9 * * *' },
+              ].map(p => (
+                <button key={p.value} onClick={() => setAnalysisSchedule(p.value)} style={{
+                  padding: '3px 10px', fontSize: 11, borderRadius: 4, cursor: 'pointer',
+                  background: analysisSchedule === p.value ? 'var(--accent-dim)' : 'var(--bg-3)',
+                  border: `1px solid ${analysisSchedule === p.value ? 'var(--accent)' : 'var(--border)'}`,
+                  color: analysisSchedule === p.value ? 'var(--accent)' : 'var(--text-1)',
+                  fontFamily: 'var(--font-mono)',
+                }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <input value={analysisSchedule} onChange={e => setAnalysisSchedule(e.target.value)}
+              style={{ width: '100%' }} placeholder="0 * * * *" />
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8 }}>

@@ -53,6 +53,29 @@ function migrate() {
     CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
   `);
 
+  const cols = db.pragma('table_info(jobs)') as Array<{ name: string }>;
+  const colNames = cols.map(c => c.name);
+  if (!colNames.includes('analysis_prompt')) {
+    db.exec('ALTER TABLE jobs ADD COLUMN analysis_prompt TEXT');
+  }
+  if (!colNames.includes('analysis_schedule')) {
+    db.exec("ALTER TABLE jobs ADD COLUMN analysis_schedule TEXT DEFAULT '0 * * * *'");
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analyses (
+      id            TEXT PRIMARY KEY,
+      job_id        TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      prompt        TEXT NOT NULL,
+      response      TEXT NOT NULL,
+      run_ids       TEXT NOT NULL,
+      duration_ms   INTEGER,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_analyses_job_id ON analyses(job_id);
+    CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON analyses(created_at DESC);
+  `);
+
   console.log('[db] Migrations applied ✓');
 }
 

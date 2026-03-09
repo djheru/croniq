@@ -99,7 +99,7 @@ export interface Job {
 }
 
 export type CreateJobInput = Omit<Job,
-  'id' | 'status' | 'lastRunAt' | 'nextRunAt' | 'createdAt' | 'updatedAt'
+  'id' | 'status' | 'lastRunAt' | 'nextRunAt' | 'sortOrder' | 'createdAt' | 'updatedAt'
 >;
 
 export type UpdateJobInput = Partial<CreateJobInput>;

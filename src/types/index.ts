@@ -93,6 +93,7 @@ export interface Job {
   nextRunAt?: string;
   analysisPrompt?: string;
   analysisSchedule?: string;     // cron expression, default '0 * * * *'
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }

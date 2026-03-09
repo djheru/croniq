@@ -23,6 +23,7 @@ function toJob(row: Record<string, unknown>): Job {
     nextRunAt: row.next_run_at as string | undefined,
     analysisPrompt: row.analysis_prompt as string | undefined,
     analysisSchedule: row.analysis_schedule as string | undefined,
+    sortOrder: (row.sort_order as number) ?? 0,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -56,11 +57,13 @@ export function hashResult(result: unknown): string {
 const insertJob = db.prepare(`
   INSERT INTO jobs (id, name, description, schedule, collector_config, output_format,
     tags, notify_on_change, webhook_url, retries, timeout_ms, analysis_prompt, analysis_schedule,
-    status, created_at, updated_at)
+    sort_order, status, created_at, updated_at)
   VALUES (@id, @name, @description, @schedule, @collector_config, @output_format,
     @tags, @notify_on_change, @webhook_url, @retries, @timeout_ms, @analysis_prompt, @analysis_schedule,
-    'active', @created_at, @updated_at)
+    @sort_order, 'active', @created_at, @updated_at)
 `);
+
+const getMaxSortOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as max_order FROM jobs');
 
 const updateJob = db.prepare(`
   UPDATE jobs SET
@@ -76,6 +79,7 @@ const updateJob = db.prepare(`
 export function createJob(input: CreateJobInput): Job {
   const now = new Date().toISOString();
   const id = uuidv4();
+  const { max_order } = getMaxSortOrder.get() as { max_order: number };
   insertJob.run({
     id,
     name: input.name,
@@ -90,6 +94,7 @@ export function createJob(input: CreateJobInput): Job {
     timeout_ms: input.timeoutMs,
     analysis_prompt: input.analysisPrompt ?? null,
     analysis_schedule: input.analysisSchedule ?? '0 * * * *',
+    sort_order: max_order + 1,
     created_at: now,
     updated_at: now,
   });
@@ -139,8 +144,16 @@ export function getJob(id: string): Job | null {
 }
 
 export function listJobs(): Job[] {
-  const rows = db.prepare('SELECT * FROM jobs ORDER BY created_at DESC').all() as Record<string, unknown>[];
+  const rows = db.prepare('SELECT * FROM jobs ORDER BY sort_order ASC, created_at DESC').all() as Record<string, unknown>[];
   return rows.map(toJob);
+}
+
+export function reorderJobs(orderedIds: string[]): void {
+  const stmt = db.prepare('UPDATE jobs SET sort_order = ? WHERE id = ?');
+  const reorder = db.transaction((ids: string[]) => {
+    ids.forEach((id, index) => stmt.run(index, id));
+  });
+  reorder(orderedIds);
 }
 
 // ─── Runs ─────────────────────────────────────────────────────────────────────

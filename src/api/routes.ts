@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  listJobs, getJob, createJob, updateJobById, deleteJob,
+  listJobs, getJob, createJob, updateJobById, deleteJob, reorderJobs,
   listRuns, getLastRun, getRunStats, setJobStatus,
   listAnalyses, getLatestAnalysis,
 } from '../db/queries.js';
@@ -87,6 +87,14 @@ router.get('/jobs', (_req, res) => {
   const jobs = listJobs();
   const scheduled = getScheduledIds();
   res.json({ data: jobs.map(j => ({ ...j, isScheduled: scheduled.includes(j.id) })) });
+});
+
+// Reorder jobs (must be before /jobs/:id to avoid param matching)
+router.put('/jobs/reorder', (req, res) => {
+  const parsed = z.object({ orderedIds: z.array(z.string()) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  reorderJobs(parsed.data.orderedIds);
+  res.json({ data: { reordered: true } });
 });
 
 router.get('/jobs/:id', (req, res) => {

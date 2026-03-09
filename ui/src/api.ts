@@ -24,6 +24,9 @@ export const api = {
   pauseJob: (id: string) => request<{ data: Job }>(`/jobs/${id}/pause`, { method: 'POST' }),
   resumeJob: (id: string) => request<{ data: Job }>(`/jobs/${id}/resume`, { method: 'POST' }),
   runJob: (id: string) => request(`/jobs/${id}/run`, { method: 'POST' }),
+  reorderJobs: (orderedIds: string[]) => request('/jobs/reorder', {
+    method: 'PUT', body: JSON.stringify({ orderedIds }),
+  }),
 
   // Runs
   getRuns: (jobId: string) => request<{ data: Run[]; stats: RunStats }>(`/jobs/${jobId}/runs`),
@@ -49,6 +52,7 @@ export interface Job {
   timeoutMs: number;
   analysisPrompt?: string;
   analysisSchedule?: string;
+  sortOrder: number;
   status: 'active' | 'paused' | 'error';
   lastRunAt?: string;
   nextRunAt?: string;

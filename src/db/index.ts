@@ -61,6 +61,15 @@ function migrate() {
   if (!colNames.includes('analysis_schedule')) {
     db.exec("ALTER TABLE jobs ADD COLUMN analysis_schedule TEXT DEFAULT '0 * * * *'");
   }
+  if (!colNames.includes('sort_order')) {
+    db.exec('ALTER TABLE jobs ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+    // Initialize sort_order based on existing creation order
+    db.exec(`
+      UPDATE jobs SET sort_order = (
+        SELECT COUNT(*) FROM jobs AS j2 WHERE j2.created_at <= jobs.created_at
+      )
+    `);
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS analyses (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { api, type Job } from './api';
@@ -113,6 +113,13 @@ function JobList({ jobs, loading, loadJobs, editJob, setEditJob, updateJob }: {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const isFiltered = filterStatus !== 'all' || filterType !== 'all' || search !== '';
+  const canDrag = !isFiltered;
 
   async function createJob(data: object) {
     await api.createJob(data);
@@ -131,6 +138,36 @@ function JobList({ jobs, loading, loadJobs, editJob, setEditJob, updateJob }: {
     await api.deleteJob(job.id);
     await loadJobs();
   }
+
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+    setDragIndex(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+    setDragOverIndex(index);
+  };
+
+  const handleDragEnd = async () => {
+    const from = dragItem.current;
+    const over = dragOverItem.current;
+    setDragIndex(null);
+    setDragOverIndex(null);
+    dragItem.current = null;
+    dragOverItem.current = null;
+
+    if (from === null || over === null || from === over) return;
+
+    // Reorder optimistically
+    const reordered = [...filtered];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(over, 0, moved);
+
+    // Persist
+    await api.reorderJobs(reordered.map(j => j.id));
+    await loadJobs();
+  };
 
   const types = [...new Set(jobs.map(j => j.collectorConfig.type))];
 
@@ -191,7 +228,7 @@ function JobList({ jobs, loading, loadJobs, editJob, setEditJob, updateJob }: {
         <Empty message={jobs.length === 0 ? "No jobs yet — create your first job to get started" : "No jobs match your filters"} />
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
-          {filtered.map(job => (
+          {filtered.map((job, index) => (
             <JobRow
               key={job.id}
               job={job}
@@ -199,6 +236,13 @@ function JobList({ jobs, loading, loadJobs, editJob, setEditJob, updateJob }: {
               onEdit={() => setEditJob(job)}
               onToggle={() => toggleJob(job)}
               onDelete={() => deleteJob(job)}
+              draggable={canDrag}
+              isDragging={dragIndex === index}
+              isDragOver={dragOverIndex === index}
+              onDragStart={() => handleDragStart(index)}
+              onDragEnter={() => handleDragEnter(index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e: React.DragEvent) => e.preventDefault()}
             />
           ))}
         </div>
@@ -235,40 +279,69 @@ function Header() {
   );
 }
 
-function JobRow({ job, onClick, onEdit, onToggle, onDelete }: {
+function JobRow({ job, onClick, onEdit, onToggle, onDelete, draggable, isDragging, isDragOver, onDragStart, onDragEnter, onDragEnd, onDragOver }: {
   job: Job;
   onClick: () => void;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  draggable?: boolean;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: () => void;
+  onDragEnter?: () => void;
+  onDragEnd?: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
 }) {
   return (
-    <Card style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12, cursor: 'pointer' }}>
-      <div style={{ flex: 1, minWidth: 0 }} onClick={onClick}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontWeight: 500, fontSize: 14 }}>{job.name}</span>
-          <StatusBadge status={job.status} />
-          <Badge variant="muted">{job.collectorConfig.type}</Badge>
-          {job.tags.slice(0, 3).map(t => <Badge key={t} variant="muted">{t}</Badge>)}
+    <div
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      style={{
+        opacity: isDragging ? 0.4 : 1,
+        borderTop: isDragOver ? '2px solid var(--accent)' : '2px solid transparent',
+        transition: 'opacity 0.15s',
+      }}
+    >
+      <Card style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12, cursor: 'pointer' }}>
+        {draggable && (
+          <span
+            style={{
+              cursor: 'grab', color: 'var(--text-2)', fontSize: 14,
+              userSelect: 'none', flexShrink: 0, lineHeight: 1,
+            }}
+            title="Drag to reorder"
+          >⠿</span>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }} onClick={onClick}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontWeight: 500, fontSize: 14 }}>{job.name}</span>
+            <StatusBadge status={job.status} />
+            <Badge variant="muted">{job.collectorConfig.type}</Badge>
+            {job.tags.slice(0, 3).map(t => <Badge key={t} variant="muted">{t}</Badge>)}
+          </div>
+          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
+            <span>{job.schedule}</span>
+            <span title={job.collectorConfig.url as string}>
+              {(job.collectorConfig.url as string)?.replace(/^https?:\/\//, '').slice(0, 40)}
+            </span>
+            {job.lastRunAt && (
+              <span>last: {formatDistanceToNow(new Date(job.lastRunAt), { addSuffix: true })}</span>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
-          <span>⏱ {job.schedule}</span>
-          <span title={job.collectorConfig.url as string}>
-            🔗 {(job.collectorConfig.url as string)?.replace(/^https?:\/\//, '').slice(0, 40)}
-          </span>
-          {job.lastRunAt && (
-            <span>last: {formatDistanceToNow(new Date(job.lastRunAt), { addSuffix: true })}</span>
-          )}
+        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+          <Button size="sm" variant="ghost" onClick={onToggle}>
+            {job.status === 'paused' ? '▶' : '⏸'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onEdit}>✎</Button>
+          <Button size="sm" variant="danger" onClick={onDelete}>✕</Button>
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-        <Button size="sm" variant="ghost" onClick={onToggle}>
-          {job.status === 'paused' ? '▶' : '⏸'}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onEdit}>✎</Button>
-        <Button size="sm" variant="danger" onClick={onDelete}>✕</Button>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
 

@@ -131,7 +131,7 @@ const newFeeds = [
       type: "rss",
       url: "https://status.aws.amazon.com/rss/all.rss",
       maxItems: 20,
-      fields: ["title", "link", "pubDate", "description"],
+      fields: ["title", "link", "pubDate", "content"],
     },
   },
   {

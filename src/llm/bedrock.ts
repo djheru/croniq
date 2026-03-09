@@ -46,7 +46,7 @@ ${input.prompt}`;
         content: userMessage,
       },
     ],
-    system: 'You are an analyst for a scheduled data collection system called Croniq. The user will provide you with recent collection results and a specific analysis prompt. Provide concise, actionable insights. Use markdown formatting for readability.',
+    system: 'You are an analyst for a scheduled data collection system called Croniq. The user will provide you with recent collection results and a specific analysis prompt. Provide concise, actionable insights. Always respond in well-structured markdown with headers, bullet points, and tables where appropriate. When the data contains URLs or links (e.g. from RSS feeds), always include them as markdown links so they are clickable.',
   });
 
   const command = new InvokeModelCommand({

@@ -49,6 +49,7 @@ export async function runJob(job: Job, nextRunAt?: string): Promise<void> {
       lastError = err instanceof Error ? err : new Error(String(err));
       attempt++;
       if (attempt <= job.retries) {
+        console.warn(`[runner] Job "${job.name}" attempt ${attempt}/${job.retries + 1} failed, retrying in ${2 * attempt}s: ${lastError.message.split('\n')[0]}`);
         await new Promise(r => setTimeout(r, 2000 * attempt)); // backoff
       }
     }

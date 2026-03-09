@@ -13,10 +13,26 @@ export class BrowserCollector implements Collector {
     const page = await browser.newPage();
 
     try {
-      await page.goto(this.config.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const response = await page.goto(this.config.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      const statusCode = response?.status() ?? 0;
+      const pageTitle = await page.title().catch(() => '');
 
       if (this.config.waitFor) {
-        await page.waitForSelector(this.config.waitFor, { timeout: 15000 });
+        try {
+          await page.waitForSelector(this.config.waitFor, { timeout: 15000 });
+        } catch (err) {
+          // Capture diagnostic context before re-throwing
+          const bodyPreview = await page.evaluate(
+            'document.body?.innerText?.slice(0, 300) ?? ""'
+          ).catch(() => '') as string;
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `${msg}\n` +
+            `[diag] status=${statusCode}, title="${pageTitle}"\n` +
+            `[diag] body preview: ${bodyPreview.replace(/\n/g, ' ').slice(0, 200)}`
+          );
+        }
       }
 
       if (this.config.clickBefore?.length) {
@@ -27,7 +43,6 @@ export class BrowserCollector implements Collector {
       }
 
       if (this.config.scrollToBottom) {
-        // eslint-disable-next-line @typescript-eslint/no-implied-eval
         await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
         await page.waitForTimeout(1000);
       }
@@ -38,7 +53,7 @@ export class BrowserCollector implements Collector {
 
       return {
         data,
-        meta: { url: this.config.url, collector: 'browser' },
+        meta: { url: this.config.url, collector: 'browser', statusCode, pageTitle },
       };
     } finally {
       await browser.close();

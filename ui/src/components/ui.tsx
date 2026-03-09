@@ -61,9 +61,9 @@ export function Button({ variant = 'ghost', size = 'md', style, children, ...pro
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+export function Card({ children, style, onClick }: { children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void }) {
   return (
-    <div style={{
+    <div onClick={onClick} style={{
       background: 'var(--bg-1)',
       border: '1px solid var(--border)',
       borderRadius: 8,

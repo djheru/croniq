@@ -227,9 +227,9 @@ function JobList({ jobs, loading, loadJobs, editJob, setEditJob, updateJob }: {
       ) : filtered.length === 0 ? (
         <Empty message={jobs.length === 0 ? "No jobs yet — create your first job to get started" : "No jobs match your filters"} />
       ) : (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 10 }}>
           {filtered.map((job, index) => (
-            <JobRow
+            <JobCard
               key={job.id}
               job={job}
               onClick={() => navigate(`/jobs/${job.id}`)}
@@ -279,7 +279,13 @@ function Header() {
   );
 }
 
-function JobRow({ job, onClick, onEdit, onToggle, onDelete, draggable, isDragging, isDragOver, onDragStart, onDragEnter, onDragEnd, onDragOver }: {
+function statusBorderColor(status: Job['status']): string {
+  if (status === 'active') return 'var(--success)';
+  if (status === 'error') return 'var(--danger)';
+  return 'var(--border)';
+}
+
+function JobCard({ job, onClick, onEdit, onToggle, onDelete, draggable, isDragging, isDragOver, onDragStart, onDragEnter, onDragEnd, onDragOver }: {
   job: Job;
   onClick: () => void;
   onEdit: () => void;
@@ -306,39 +312,78 @@ function JobRow({ job, onClick, onEdit, onToggle, onDelete, draggable, isDraggin
         transition: 'opacity 0.15s',
       }}
     >
-      <Card style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12, cursor: 'pointer' }}>
-        {draggable && (
-          <span
-            style={{
-              cursor: 'grab', color: 'var(--text-2)', fontSize: 14,
-              userSelect: 'none', flexShrink: 0, lineHeight: 1,
-            }}
-            title="Drag to reorder"
-          >⠿</span>
-        )}
-        <div style={{ flex: 1, minWidth: 0 }} onClick={onClick}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontWeight: 500, fontSize: 14 }}>{job.name}</span>
-            <StatusBadge status={job.status} />
-            <Badge variant="muted">{job.collectorConfig.type}</Badge>
-            {job.tags.slice(0, 3).map(t => <Badge key={t} variant="muted">{t}</Badge>)}
-          </div>
-          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
-            <span>{job.schedule}</span>
-            <span title={job.collectorConfig.url as string}>
-              {(job.collectorConfig.url as string)?.replace(/^https?:\/\//, '').slice(0, 40)}
-            </span>
-            {job.lastRunAt && (
-              <span>last: {formatDistanceToNow(new Date(job.lastRunAt), { addSuffix: true })}</span>
+      <Card
+        onClick={onClick}
+        style={{
+          padding: '14px',
+          cursor: 'pointer',
+          borderLeft: `3px solid ${statusBorderColor(job.status)}`,
+          borderColor: job.status === 'error'
+            ? 'rgba(248,81,73,0.25)'
+            : undefined,
+          borderLeftColor: statusBorderColor(job.status),
+        }}
+      >
+        {/* Header: drag handle + name + status */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+            {draggable && (
+              <span
+                onClick={e => e.stopPropagation()}
+                style={{
+                  cursor: 'grab', color: 'var(--text-2)', fontSize: 12,
+                  userSelect: 'none', flexShrink: 0, lineHeight: 1,
+                }}
+                title="Drag to reorder"
+              >⠿</span>
             )}
+            <span style={{
+              fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{job.name}</span>
           </div>
+          <StatusBadge status={job.status} />
         </div>
-        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-          <Button size="sm" variant="ghost" onClick={onToggle}>
-            {job.status === 'paused' ? '▶' : '⏸'}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onEdit}>✎</Button>
-          <Button size="sm" variant="danger" onClick={onDelete}>✕</Button>
+
+        {/* Tags */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+          <Badge variant="muted">{job.collectorConfig.type}</Badge>
+          {job.tags.slice(0, 3).map(t => <Badge key={t} variant="muted">{t}</Badge>)}
+        </div>
+
+        {/* Schedule */}
+        <div style={{ fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>
+          {job.schedule}
+        </div>
+
+        {/* URL */}
+        <div style={{
+          fontSize: 10, color: 'var(--text-2)', fontFamily: 'var(--font-mono)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 10,
+        }} title={job.collectorConfig.url as string}>
+          {(job.collectorConfig.url as string)?.replace(/^https?:\/\//, '').slice(0, 40)}
+        </div>
+
+        {/* Footer: last run + actions */}
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderTop: '1px solid var(--border)', paddingTop: 8,
+          }}
+        >
+          <span style={{ fontSize: 10, color: job.status === 'error' ? 'var(--danger)' : 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
+            {job.lastRunAt
+              ? `${job.status === 'error' ? 'failed' : 'last'} ${formatDistanceToNow(new Date(job.lastRunAt), { addSuffix: true })}`
+              : 'no runs yet'}
+          </span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <Button size="sm" variant="ghost" onClick={onToggle}>
+              {job.status === 'paused' ? '▶' : '⏸'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onEdit}>✎</Button>
+            <Button size="sm" variant="danger" onClick={onDelete}>✕</Button>
+          </div>
         </div>
       </Card>
     </div>

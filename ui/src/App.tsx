@@ -280,8 +280,8 @@ function Header() {
 }
 
 function statusBorderColor(status: Job['status']): string {
-  if (status === 'active') return 'var(--success)';
-  if (status === 'error') return 'var(--danger)';
+  if (status === 'active') return 'rgba(63,185,80,0.35)';
+  if (status === 'error') return 'rgba(248,81,73,0.35)';
   return 'var(--border)';
 }
 
@@ -319,7 +319,7 @@ function JobCard({ job, onClick, onEdit, onToggle, onDelete, draggable, isDraggi
           cursor: 'pointer',
           borderLeft: `3px solid ${statusBorderColor(job.status)}`,
           borderColor: job.status === 'error'
-            ? 'rgba(248,81,73,0.25)'
+            ? 'rgba(248,81,73,0.15)'
             : undefined,
           borderLeftColor: statusBorderColor(job.status),
         }}

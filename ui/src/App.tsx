@@ -37,7 +37,7 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-0)' }}>
       <Header />
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
+      <div style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 12px' }}>
         <Routes>
           <Route path="/" element={
             <JobList jobs={jobs} loading={loading} loadJobs={loadJobs} editJob={editJob} setEditJob={setEditJob} updateJob={updateJob} />

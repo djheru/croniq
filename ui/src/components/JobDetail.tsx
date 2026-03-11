@@ -1,14 +1,230 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api, type Job, type Run, type RunStats, type Analysis } from '../api';
+import { api, type Job, type Run, type RunStats, type RunStage } from '../api';
 import { Badge, Button, Card, Empty, Spinner } from './ui';
 
 function outcomeVariant(o: string): 'success' | 'danger' | 'warning' {
   if (o === 'success') return 'success';
   if (o === 'timeout') return 'warning';
   return 'danger';
+}
+
+function StageBadge({ status }: { status: 'success' | 'error' | 'skipped' }) {
+  const config = {
+    success: { label: 'success', color: 'var(--success)', bg: 'rgba(63,185,80,0.1)' },
+    error: { label: 'error', color: 'var(--danger)', bg: 'rgba(248,81,73,0.1)' },
+    skipped: { label: 'skipped', color: 'var(--text-2)', bg: 'var(--bg-2)' },
+  }[status];
+
+  return (
+    <span style={{
+      fontSize: 10, fontFamily: 'var(--font-mono)',
+      padding: '1px 6px', borderRadius: 3,
+      color: config.color, background: config.bg,
+    }}>
+      {config.label}
+    </span>
+  );
+}
+
+function StagePanel({ stage, children }: {
+  stage: RunStage;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card style={{ marginBottom: 8 }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+            {open ? '▾' : '▸'}
+          </span>
+          <span style={{
+            fontSize: 12,
+            fontFamily: 'var(--font-mono)',
+            textTransform: 'capitalize',
+          }}>
+            {stage.stage}
+          </span>
+          <StageBadge status={stage.status} />
+        </div>
+        <span style={{
+          fontSize: 10,
+          color: 'var(--text-2)',
+          fontFamily: 'var(--font-mono)',
+        }}>
+          {stage.durationMs ? `${(stage.durationMs / 1000).toFixed(1)}s` : ''}
+          {stage.tokenCount ? ` · ${stage.tokenCount} tokens` : ''}
+        </span>
+      </div>
+      {open && (
+        <div style={{
+          padding: '0 14px 14px',
+          borderTop: '1px solid var(--border)',
+        }}>
+          {stage.status === 'error' && (
+            <div style={{
+              padding: '8px 10px',
+              marginTop: 10,
+              background: 'rgba(248,81,73,0.08)',
+              borderRadius: 4,
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--danger)',
+            }}>
+              {stage.errorType}: {stage.error}
+            </div>
+          )}
+          <div style={{ marginTop: 10 }}>{children}</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CollectorPanel({ data }: { data: unknown }) {
+  const [expr, setExpr] = useState('');
+  const [replOutput, setReplOutput] = useState('');
+
+  const evalExpression = (input: string) => {
+    try {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function('data', `return ${input}`);
+      const result = fn(data);
+      setReplOutput(JSON.stringify(result, null, 2));
+    } catch (e) {
+      setReplOutput(String(e));
+    }
+  };
+
+  return (
+    <div>
+      <pre style={{
+        fontSize: 11, fontFamily: 'var(--font-mono)',
+        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        maxHeight: 300, overflow: 'auto', marginBottom: 10,
+      }}>
+        {JSON.stringify(data, null, 2)}
+      </pre>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          value={expr}
+          onChange={(e) => setExpr(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') evalExpression(expr); }}
+          placeholder="data.items[0].title"
+          style={{ flex: 1, fontSize: 11, fontFamily: 'var(--font-mono)' }}
+        />
+      </div>
+      {replOutput && (
+        <pre style={{
+          fontSize: 11, fontFamily: 'var(--font-mono)',
+          color: 'var(--accent)', marginTop: 6,
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        }}>
+          {replOutput}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function SummaryView({ data }: { data: unknown }) {
+  if (!data || typeof data !== 'object') return null;
+  const summary = data as {
+    title?: string;
+    overallSummary?: string;
+    items?: Array<{ headline: string; summary: string; url?: string; relevance: string }>;
+  };
+
+  return (
+    <div>
+      {summary.overallSummary && (
+        <p style={{ fontSize: 12, color: 'var(--text-1)', marginBottom: 12 }}>
+          {summary.overallSummary}
+        </p>
+      )}
+      {summary.items?.map((item, i) => (
+        <div key={i} style={{
+          padding: '8px 0',
+          borderBottom: i < (summary.items?.length ?? 0) - 1 ? '1px solid var(--border)' : undefined,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <Badge variant={item.relevance === 'high' ? 'accent' : 'muted'}>
+              {item.relevance}
+            </Badge>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>
+              {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.headline}</a> : item.headline}
+            </span>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-2)', margin: 0 }}>{item.summary}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResearchView({ data }: { data: unknown }) {
+  if (!data || typeof data !== 'object') return null;
+  const research = data as {
+    trends?: Array<{ description: string; confidence: string; supportingEvidence: string[] }>;
+    relatedFindings?: Array<{ fromJob: string; connection: string; items: string[] }>;
+    anomalies?: Array<{ description: string; severity: string }>;
+  };
+
+  return (
+    <div>
+      {research.trends && research.trends.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 6 }}>Trends</div>
+          {research.trends.map((t, i) => (
+            <div key={i} style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <Badge variant={t.confidence === 'high' ? 'accent' : 'muted'}>{t.confidence}</Badge>
+                <span style={{ fontSize: 12 }}>{t.description}</span>
+              </div>
+              <ul style={{ fontSize: 11, color: 'var(--text-2)', margin: '4px 0 0 20px', padding: 0 }}>
+                {t.supportingEvidence.map((e, j) => <li key={j}>{e}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+      {research.relatedFindings && research.relatedFindings.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 6 }}>Related</div>
+          {research.relatedFindings.map((f, i) => (
+            <div key={i} style={{ marginBottom: 6, fontSize: 12 }}>
+              <strong>{f.fromJob}</strong>: {f.connection}
+            </div>
+          ))}
+        </div>
+      )}
+      {research.anomalies && research.anomalies.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 6 }}>Anomalies</div>
+          {research.anomalies.map((a, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+              <Badge variant={a.severity === 'high' ? 'danger' : 'muted'}>{a.severity}</Badge>
+              <span style={{ fontSize: 12 }}>{a.description}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
@@ -22,10 +238,8 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
-  const [selectedAnalysis, setSelectedAnalysis] = useState<Analysis | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [runsExpanded, setRunsExpanded] = useState(!job.analysisPrompt);
+  const [stages, setStages] = useState<RunStage[]>([]);
+  const [runsExpanded, setRunsExpanded] = useState(true);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [scheduleInput, setScheduleInput] = useState(job.schedule);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -36,13 +250,6 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
       const res = await api.getRuns(job.id);
       setRuns(res.data);
       setStats(res.stats);
-      if (job.analysisPrompt) {
-        const analysisRes = await api.getAnalyses(job.id);
-        setAnalyses(analysisRes.data);
-        if (analysisRes.data.length > 0) {
-          setSelectedAnalysis((prev: Analysis | null) => prev ?? analysisRes.data[0]);
-        }
-      }
     } finally {
       setLoading(false);
     }
@@ -67,6 +274,11 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
 
   useEffect(() => { load(); }, [job.id]);
 
+  useEffect(() => {
+    if (!selectedRun) return;
+    api.getRunStages(job.id, selectedRun.id).then((res) => setStages(res.data));
+  }, [selectedRun, job.id]);
+
   async function trigger() {
     setTriggering(true);
     try {
@@ -77,18 +289,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
     }
   }
 
-  async function triggerAnalysis() {
-    setAnalyzing(true);
-    try {
-      await api.triggerAnalysis(job.id);
-      setTimeout(load, 5000);
-    } finally {
-      setAnalyzing(false);
-    }
-  }
-
   const successRate = stats ? Math.round((stats.success / (stats.total || 1)) * 100) : 0;
-  const hasAnalysis = !!job.analysisPrompt;
 
   return (
     <div>
@@ -169,73 +370,12 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
         </div>
       )}
 
-      {/* Analysis section — shown first when present */}
-      {hasAnalysis && (
-        <div style={{ marginBottom: 20 }}>
-          <Card>
-            <div style={{
-              padding: '12px 16px', borderBottom: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <span style={{ fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                LLM Analysis
-              </span>
-              <Button size="sm" variant="ghost" onClick={triggerAnalysis} disabled={analyzing}>
-                {analyzing ? <Spinner /> : '⚡'} Analyze now
-              </Button>
-            </div>
-
-            {analyses.length === 0 ? (
-              <Empty message="No analyses yet — waiting for scheduled run or trigger manually" />
-            ) : (
-              <div>
-                {/* Analysis selector */}
-                <div style={{ display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                  {analyses.slice(0, 10).map(a => (
-                    <button key={a.id} onClick={() => setSelectedAnalysis(a)} style={{
-                      padding: '3px 8px', fontSize: 10, borderRadius: 4, cursor: 'pointer',
-                      background: selectedAnalysis?.id === a.id ? 'var(--accent-dim)' : 'transparent',
-                      border: `1px solid ${selectedAnalysis?.id === a.id ? 'var(--accent)' : 'var(--border)'}`,
-                      color: selectedAnalysis?.id === a.id ? 'var(--accent)' : 'var(--text-1)',
-                      fontFamily: 'var(--font-mono)',
-                    }}>
-                      {format(new Date(a.createdAt), 'MMM d, HH:mm')}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Analysis content */}
-                <div style={{ padding: 16, maxHeight: 500, overflow: 'auto' }}>
-                  {(selectedAnalysis ?? analyses[0]) && (
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
-                        {(selectedAnalysis ?? analyses[0]).durationMs}ms
-                        {' \u00b7 '}
-                        {(selectedAnalysis ?? analyses[0]).runIds.length} runs analyzed
-                      </div>
-                      <div className="analysis-markdown">
-                        <Markdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{ a: ({ href, children }) => (
-                            <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-                          )}}
-                        >{(selectedAnalysis ?? analyses[0]).response}</Markdown>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
-
-      {/* Run History — collapsible when analysis is present */}
+      {/* Run History */}
       <CollapsibleSection
         title="Run History"
         expanded={runsExpanded}
         onToggle={() => setRunsExpanded(!runsExpanded)}
-        collapsible={hasAnalysis}
+        collapsible={false}
         count={runs.length}
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -281,13 +421,41 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
               {selectedRun ? `Run Detail — ${format(new Date(selectedRun.startedAt), 'MMM d, HH:mm:ss')}` : 'Select a run'}
             </div>
             {selectedRun ? (
-              <div style={{ maxHeight: 460, overflow: 'auto' }}>
+              <div style={{ maxHeight: 460, overflow: 'auto', padding: 16 }}>
                 {selectedRun.error ? (
-                  <div style={{ padding: 16 }}>
-                    <RunError error={selectedRun.error} />
-                  </div>
+                  <RunError error={selectedRun.error} />
                 ) : (
-                  <RunDetailPanel result={selectedRun.result} />
+                  <div>
+                    {/* Report (editor output) */}
+                    {selectedRun?.result && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div className="analysis-markdown">
+                          <Markdown remarkPlugins={[remarkGfm]} components={{
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                            ),
+                          }}>
+                            {typeof selectedRun.result === 'string'
+                              ? selectedRun.result
+                              : JSON.stringify(selectedRun.result, null, 2)}
+                          </Markdown>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stage panels */}
+                    {stages.filter(s => s.stage !== 'editor').map((stage) => (
+                      <StagePanel key={stage.id} stage={stage}>
+                        {stage.stage === 'collector' ? (
+                          <CollectorPanel data={stage.output} />
+                        ) : stage.stage === 'summarizer' ? (
+                          <SummaryView data={stage.output} />
+                        ) : stage.stage === 'researcher' ? (
+                          <ResearchView data={stage.output} />
+                        ) : null}
+                      </StagePanel>
+                    ))}
+                  </div>
                 )}
               </div>
             ) : (
@@ -333,99 +501,6 @@ function CollapsibleSection({ title, expanded, onToggle, collapsible, count, chi
         <Badge variant="muted">{count}</Badge>
       </button>
       {expanded && children}
-    </div>
-  );
-}
-
-function RunDetailPanel({ result }: { result?: unknown }) {
-  const [replInput, setReplInput] = useState('');
-  const [replOutput, setReplOutput] = useState<string | null>(null);
-  const [replError, setReplError] = useState<string | null>(null);
-  const [showRepl, setShowRepl] = useState(false);
-
-  const runExpression = useCallback(() => {
-    if (!replInput.trim()) return;
-    setReplError(null);
-    setReplOutput(null);
-    try {
-      // data is the run result, available in the expression
-      const fn = new Function('data', `return ${replInput}`);
-      const output = fn(result);
-      setReplOutput(JSON.stringify(output, null, 2));
-    } catch (err) {
-      setReplError(err instanceof Error ? err.message : String(err));
-    }
-  }, [replInput, result]);
-
-  return (
-    <div>
-      {/* Raw result */}
-      <pre style={{
-        fontSize: 11, color: 'var(--text-0)', whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word', fontFamily: 'var(--font-mono)',
-        padding: 16, margin: 0,
-      }}>
-        {JSON.stringify(result, null, 2)}
-      </pre>
-
-      {/* REPL toggle */}
-      <div style={{ borderTop: '1px solid var(--border)' }}>
-        <button
-          onClick={() => setShowRepl(!showRepl)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'none', border: 'none', color: 'var(--accent)',
-            cursor: 'pointer', padding: '8px 16px',
-            fontFamily: 'var(--font-mono)', fontSize: 11,
-          }}
-        >
-          <span style={{ fontSize: 10 }}>{showRepl ? '▼' : '▶'}</span>
-          JS Console
-        </button>
-
-        {showRepl && (
-          <div style={{ padding: '0 16px 12px' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', marginBottom: 6 }}>
-              <code>data</code> = run result. Write any JS expression.
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                value={replInput}
-                onChange={e => setReplInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') runExpression(); }}
-                placeholder="data.prices.length"
-                style={{
-                  flex: 1, fontSize: 12, fontFamily: 'var(--font-mono)',
-                  background: 'var(--bg-0)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', padding: '6px 10px',
-                  color: 'var(--text-0)',
-                }}
-              />
-              <Button size="sm" variant="ghost" onClick={runExpression}>Run</Button>
-            </div>
-            {replOutput !== null && (
-              <pre style={{
-                marginTop: 8, padding: 10, background: 'var(--bg-0)',
-                borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-                fontSize: 11, color: 'var(--success)', fontFamily: 'var(--font-mono)',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflow: 'auto',
-              }}>
-                {replOutput}
-              </pre>
-            )}
-            {replError && (
-              <pre style={{
-                marginTop: 8, padding: 10, background: 'var(--bg-0)',
-                borderRadius: 'var(--radius)', border: '1px solid var(--danger-dim, var(--border))',
-                fontSize: 11, color: 'var(--danger)', fontFamily: 'var(--font-mono)',
-                whiteSpace: 'pre-wrap',
-              }}>
-                {replError}
-              </pre>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

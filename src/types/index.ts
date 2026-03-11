@@ -91,8 +91,8 @@ export interface Job {
   status: JobStatus;
   lastRunAt?: string;
   nextRunAt?: string;
-  analysisPrompt?: string;
-  analysisSchedule?: string;     // cron expression, default '0 * * * *'
+  jobPrompt?: string;
+  jobParams?: Record<string, string>;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -121,18 +121,6 @@ export interface Run {
   resultHash?: string;
 }
 
-// ─── Analysis ────────────────────────────────────────────────────────────────
-
-export interface Analysis {
-  id: string;
-  jobId: string;
-  prompt: string;
-  response: string;
-  runIds: string[];
-  durationMs?: number;
-  createdAt: string;
-}
-
 // ─── API Responses ────────────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {
@@ -146,3 +134,5 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
 }
+
+export type { PipelineStage, StageStatus, StageErrorType, RunStage } from '../agents/types.js';

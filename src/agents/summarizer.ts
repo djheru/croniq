@@ -1,5 +1,5 @@
 import { ChatBedrockConverse } from '@langchain/aws';
-import { SystemMessage, HumanMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import type { Job } from '../types/index.js';
 import { summarizerSystemPrompt } from './prompts.js';
 import { SummaryOutputSchema, type SummaryOutput } from './types.js';
@@ -12,7 +12,9 @@ export const createSummarizerAgent = (job: Job) => {
     region: process.env.AWS_REGION ?? 'us-east-1',
   });
 
-  const structuredModel = model.withStructuredOutput(SummaryOutputSchema);
+  const structuredModel = model.withStructuredOutput(SummaryOutputSchema) as unknown as {
+    invoke: (messages: BaseMessage[]) => Promise<SummaryOutput>;
+  };
 
   return {
     invoke: async (input: string): Promise<SummaryOutput> => {

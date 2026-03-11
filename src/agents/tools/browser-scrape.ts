@@ -1,8 +1,11 @@
 import { tool } from '@langchain/core/tools';
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
+import * as cheerio from 'cheerio';
+import { extractSelectors } from './selectors.js';
 import type { SelectorMap } from '../../types/index.js';
 
-export const browserScrape = tool(
+export const browserScrape: StructuredToolInterface = tool(
   async ({ url, selectors, wait_for, scroll_to_bottom }) => {
     let playwright;
     try {
@@ -21,14 +24,12 @@ export const browserScrape = tool(
       }
 
       if (scroll_to_bottom) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
         await page.waitForTimeout(1000);
       }
 
       const html = await page.content();
-      const cheerio = await import('cheerio');
       const $ = cheerio.load(html);
-      const { extractSelectors } = await import('./selectors.js');
       const data = extractSelectors($, selectors as SelectorMap);
       return JSON.stringify(data);
     } finally {

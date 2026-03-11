@@ -1,8 +1,9 @@
 import { tool } from '@langchain/core/tools';
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import { listRuns, listRunStages } from '../../db/queries.js';
 
-export const queryRuns = tool(
+export const queryRuns: StructuredToolInterface = tool(
   async ({ job_id, limit, outcome_filter }) => {
     let runs = listRuns(job_id, limit);
 

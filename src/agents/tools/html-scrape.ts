@@ -1,10 +1,11 @@
 import { tool } from '@langchain/core/tools';
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
 import { extractSelectors } from './selectors.js';
 import type { SelectorMap } from '../../types/index.js';
 
-export const htmlScrape = tool(
+export const htmlScrape: StructuredToolInterface = tool(
   async ({ url, selectors, headers }) => {
     const res = await fetch(url, {
       headers: {

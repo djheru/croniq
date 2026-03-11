@@ -1,4 +1,5 @@
 import { tool } from '@langchain/core/tools';
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 
 const getNestedValue = (obj: unknown, path: string): unknown => {
@@ -10,7 +11,7 @@ const getNestedValue = (obj: unknown, path: string): unknown => {
   }, obj);
 };
 
-export const apiFetch = tool(
+export const apiFetch: StructuredToolInterface = tool(
   async ({ url, method, headers, body, extract }) => {
     const options: RequestInit = {
       method,

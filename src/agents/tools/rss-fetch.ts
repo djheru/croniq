@@ -1,4 +1,5 @@
 import { tool } from '@langchain/core/tools';
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 import Parser from 'rss-parser';
 
@@ -11,16 +12,16 @@ const fieldMap: Record<RssField, (item: Parser.Item) => unknown> = {
   link: (item) => item.link ?? null,
   pubDate: (item) => item.pubDate ?? item.isoDate ?? null,
   content: (item) => item.contentSnippet ?? item.content ?? null,
-  author: (item) => item.creator ?? item.author ?? null,
+  author: (item) => (item as Record<string, unknown>).creator ?? (item as Record<string, unknown>).author ?? null,
   categories: (item) => item.categories ?? [],
 };
 
-export const rssFetch = tool(
+export const rssFetch: StructuredToolInterface = tool(
   async ({ url, max_items, fields }) => {
     const feed = await parser.parseURL(url);
     const items = feed.items.slice(0, max_items).map((item) => {
       const extracted: Record<string, unknown> = {};
-      for (const f of fields) {
+      for (const f of fields as RssField[]) {
         extracted[f] = fieldMap[f](item);
       }
       return extracted;

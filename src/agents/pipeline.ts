@@ -71,11 +71,15 @@ const runStage = async <T>(
   }
 };
 
-import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { ResearchOutputSchema } from './types.js';
 
+interface ReactAgentLike {
+  invoke: (input: { messages: BaseMessage[] }) => Promise<{ messages?: BaseMessage[] }>;
+}
+
 // Invoke a createReactAgent agent (collector, researcher) — returns final message content
-const invokeReactAgent = async (agent: Awaited<ReturnType<typeof createCollectorAgent>>, message: string): Promise<string> => {
+const invokeReactAgent = async (agent: ReactAgentLike, message: string): Promise<string> => {
   const result = await agent.invoke({
     messages: [new HumanMessage(message)],
   });
@@ -88,7 +92,7 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
 
   // Stage 1: Collector (React agent with tools)
   const collectorAgent = createCollectorAgent(job);
-  const collectorMessage = `Collect data from: ${(job.collectorConfig as Record<string, unknown>).url ?? 'configured source'}`;
+  const collectorMessage = `Collect data from: ${'url' in job.collectorConfig ? (job.collectorConfig as { url: string }).url : 'configured source'}`;
   const collectorResult = await runStage<CollectorOutput>(
     'collector',
     runId,

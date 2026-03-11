@@ -1,4 +1,5 @@
 import { tool } from '@langchain/core/tools';
+import type { StructuredToolInterface } from '@langchain/core/tools';
 import { z } from 'zod';
 
 const getNestedValue = (obj: unknown, path: string): unknown => {
@@ -10,7 +11,7 @@ const getNestedValue = (obj: unknown, path: string): unknown => {
   }, obj);
 };
 
-export const graphqlFetch = tool(
+export const graphqlFetch: StructuredToolInterface = tool(
   async ({ url, query, variables, headers, extract }) => {
     const res = await fetch(url, {
       method: 'POST',

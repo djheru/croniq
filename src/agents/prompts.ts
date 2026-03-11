@@ -7,7 +7,7 @@ export const collectorSystemPrompt = (job: Job): string => {
   let prompt = `You are a data collector agent. Your job is to collect data from the specified source using the appropriate tool.
 
 Source type: ${config.type}
-URL: ${(config as Record<string, unknown>).url ?? 'N/A'}
+URL: ${'url' in config ? (config as { url: string }).url : 'N/A'}
 `;
 
   if ('fields' in config && config.fields) {

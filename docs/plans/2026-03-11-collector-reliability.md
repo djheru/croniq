@@ -11,17 +11,18 @@ Of the five collector types, only **API** and **RSS** work reliably. HTML and br
 
 ### Collector Health Summary
 
-| Type | Status | Issues |
-|------|--------|--------|
-| **api** | Reliable | No timeout on fetch; otherwise solid |
-| **rss** | Reliable | No timeout on parser; otherwise solid |
-| **html** | Fragile | No fetch timeout, no retry, sites block/change selectors |
-| **browser** | Fragile | Heavy (Playwright/Chromium on Pi), slow, memory-hungry |
-| **graphql** | Untested | No real jobs using it; no timeout on fetch |
+| Type        | Status   | Issues                                                   |
+| ----------- | -------- | -------------------------------------------------------- |
+| **api**     | Reliable | No timeout on fetch; otherwise solid                     |
+| **rss**     | Reliable | No timeout on parser; otherwise solid                    |
+| **html**    | Fragile  | No fetch timeout, no retry, sites block/change selectors |
+| **browser** | Fragile  | Heavy (Playwright/Chromium on Pi), slow, memory-hungry   |
+| **graphql** | Untested | No real jobs using it; no timeout on fetch               |
 
 ### Runner Strengths
 
 The job runner (`src/jobs/runner.ts`) already has:
+
 - Retry loop with exponential backoff (2s × attempt number)
 - Timeout wrapper via `Promise.race` using job's `timeoutMs`
 - Change detection via SHA-256 hashing
@@ -58,13 +59,13 @@ clearTimeout(timeout);
 
 Add error classification so the runner can make better retry decisions:
 
-| Error Type | Retry? | Examples |
-|------------|--------|----------|
-| `network` | Yes | ECONNREFUSED, ETIMEDOUT, DNS failure |
-| `timeout` | Yes (with backoff) | AbortController timeout, Playwright timeout |
-| `server` | Yes (with backoff) | 500, 502, 503, 429 |
-| `client` | No | 400, 401, 403, 404 |
-| `parse` | No | Invalid JSON, missing expected selectors |
+| Error Type | Retry?             | Examples                                    |
+| ---------- | ------------------ | ------------------------------------------- |
+| `network`  | Yes                | ECONNREFUSED, ETIMEDOUT, DNS failure        |
+| `timeout`  | Yes (with backoff) | AbortController timeout, Playwright timeout |
+| `server`   | Yes (with backoff) | 500, 502, 503, 429                          |
+| `client`   | No                 | 400, 401, 403, 404                          |
+| `parse`    | No                 | Invalid JSON, missing expected selectors    |
 
 **Implementation:** Collectors throw typed errors; runner catches and decides retry behavior.
 
@@ -90,32 +91,32 @@ Free, no API key required. Just needs a descriptive `User-Agent` header. Already
 
 #### Real Estate — Options
 
-| Service | Price | Data | Notes |
-|---------|-------|------|-------|
-| Redfin Data Center | Free | Downloadable CSVs | Weekly market data, no API, download + parse |
-| Zillow Bridge API | $0-paid tiers | Property data, Zestimates | Requires application approval |
-| Realtor.com API (RapidAPI) | Free tier: 100 req/mo | Listings, property details | Good for specific property monitoring |
-| ATTOM Data | $$$$ | Comprehensive property data | Overkill for personal use |
+| Service                    | Price                 | Data                        | Notes                                        |
+| -------------------------- | --------------------- | --------------------------- | -------------------------------------------- |
+| Redfin Data Center         | Free                  | Downloadable CSVs           | Weekly market data, no API, download + parse |
+| Zillow Bridge API          | $0-paid tiers         | Property data, Zestimates   | Requires application approval                |
+| Realtor.com API (RapidAPI) | Free tier: 100 req/mo | Listings, property details  | Good for specific property monitoring        |
+| ATTOM Data                 | $$$$                  | Comprehensive property data | Overkill for personal use                    |
 
 **Recommendation:** Redfin Data Center (free CSVs) for market trends. RapidAPI Realtor.com free tier for specific property/listing monitoring if needed.
 
 #### Financial Data
 
-| Service | Price | Data | Notes |
-|---------|-------|------|-------|
-| Alpha Vantage | Free (25 req/day) | Stocks, forex, crypto, economic indicators | Generous free tier |
-| Finnhub | Free tier | Real-time quotes, company news | Good for market monitoring |
-| FRED API | Free | Federal Reserve economic data | Authoritative source, API key required |
+| Service       | Price             | Data                                       | Notes                                  |
+| ------------- | ----------------- | ------------------------------------------ | -------------------------------------- |
+| Alpha Vantage | Free (25 req/day) | Stocks, forex, crypto, economic indicators | Generous free tier                     |
+| Finnhub       | Free tier         | Real-time quotes, company news             | Good for market monitoring             |
+| FRED API      | Free              | Federal Reserve economic data              | Authoritative source, API key required |
 
 **Recommendation:** Alpha Vantage free tier for gold/market prices. FRED for economic indicators (replaces fragile Fed Reserve HTML scraping).
 
 #### Political Polling
 
-| Service | Price | Data | Notes |
-|---------|-------|------|-------|
-| FiveThirtyEight | Free (RSS/scrape) | Polling averages | Already have RSS feed configured |
-| RealClearPolitics | Free (RSS) | Polling aggregation | Already configured |
-| Google Civic Info API | Free | Election info, officials | Requires API key |
+| Service               | Price             | Data                     | Notes                            |
+| --------------------- | ----------------- | ------------------------ | -------------------------------- |
+| FiveThirtyEight       | Free (RSS/scrape) | Polling averages         | Already have RSS feed configured |
+| RealClearPolitics     | Free (RSS)        | Polling aggregation      | Already configured               |
+| Google Civic Info API | Free              | Election info, officials | Requires API key                 |
 
 **Recommendation:** Keep RSS feeds for polling. Add Google Civic API for structured election data if desired.
 
@@ -130,7 +131,9 @@ For jobs that genuinely need JavaScript rendering (can't be replaced with APIs):
 
 ```typescript
 // Block unnecessary resources
-await page.route('**/*.{png,jpg,gif,svg,woff,woff2,css}', route => route.abort());
+await page.route("**/*.{png,jpg,gif,svg,woff,woff2,css}", (route) =>
+  route.abort(),
+);
 ```
 
 ### 6. Validate Response Shape
@@ -147,14 +150,14 @@ This prevents silent "success" with empty or malformed data that looks like noth
 
 ## Implementation Priority
 
-| Priority | Item | Effort | Impact |
-|----------|------|--------|--------|
-| 1 | Fetch timeouts (all collectors) | 1 hour | Prevents hanging jobs |
-| 2 | Error classification + smart retries | 2 hours | Stops wasting retries on permanent failures |
-| 3 | Response validation | 1 hour | Catches silent failures |
-| 4 | Circuit breaker | 1 hour | Protects Pi resources |
-| 5 | Browser resource blocking | 30 min | Speeds up browser jobs |
-| 6 | Replace HTML jobs with APIs | 2-3 hours | Eliminates fragile scraping |
+| Priority | Item                                 | Effort    | Impact                                      |
+| -------- | ------------------------------------ | --------- | ------------------------------------------- |
+| 1        | Fetch timeouts (all collectors)      | 1 hour    | Prevents hanging jobs                       |
+| 2        | Error classification + smart retries | 2 hours   | Stops wasting retries on permanent failures |
+| 3        | Response validation                  | 1 hour    | Catches silent failures                     |
+| 4        | Circuit breaker                      | 1 hour    | Protects Pi resources                       |
+| 5        | Browser resource blocking            | 30 min    | Speeds up browser jobs                      |
+| 6        | Replace HTML jobs with APIs          | 2-3 hours | Eliminates fragile scraping                 |
 
 ---
 
@@ -162,12 +165,12 @@ This prevents silent "success" with empty or malformed data that looks like noth
 
 These current jobs use HTML/browser scraping and should be converted to API-based collection:
 
-| Job | Current Type | Proposed Source | Notes |
-|-----|-------------|----------------|-------|
-| Gold Price | html (scrape) | Alpha Vantage API | Free, 25 req/day |
-| Gas Prices (AZ/MI) | html (scrape) | GasBuddy or AAA API | May need to stay as scrape |
-| Phoenix New Times Food | html (scrape) | RSS if available | Check for RSS feed first |
-| GitHub Trending TS | html (scrape) | GitHub API (GraphQL) | `/search/repositories` endpoint |
+| Job                    | Current Type  | Proposed Source      | Notes                           |
+| ---------------------- | ------------- | -------------------- | ------------------------------- |
+| Gold Price             | html (scrape) | Alpha Vantage API    | Free, 25 req/day                |
+| Gas Prices (AZ/MI)     | html (scrape) | GasBuddy or AAA API  | May need to stay as scrape      |
+| Phoenix New Times Food | html (scrape) | RSS if available     | Check for RSS feed first        |
+| GitHub Trending TS     | html (scrape) | GitHub API (GraphQL) | `/search/repositories` endpoint |
 
 ---
 

@@ -451,11 +451,11 @@ ssh kali "chmod 600 ~/.aws/pi.key && pm2 restart croniq"
 
 ## Environment Variables
 
-| Variable           | Default                                      | Description                       |
-| ------------------ | -------------------------------------------- | --------------------------------- |
-| `PORT`             | `3001`                                       | HTTP server port                  |
-| `DATA_DIR`         | `./data`                                     | SQLite database directory         |
-| `AWS_REGION`       | `us-east-1`                                  | AWS region for Bedrock            |
+| Variable           | Default                           | Description                       |
+| ------------------ | --------------------------------- | --------------------------------- |
+| `PORT`             | `3001`                            | HTTP server port                  |
+| `DATA_DIR`         | `./data`                          | SQLite database directory         |
+| `AWS_REGION`       | `us-east-1`                       | AWS region for Bedrock            |
 | `BEDROCK_MODEL_ID` | `us.anthropic.claude-opus-4-6-v1` | Bedrock model to use for analysis |
 
 ---

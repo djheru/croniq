@@ -427,7 +427,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
                 ) : (
                   <div>
                     {/* Report (editor output) */}
-                    {selectedRun?.result && (
+                    {selectedRun?.result != null && (
                       <div style={{ marginBottom: 16 }}>
                         <div className="analysis-markdown">
                           <Markdown remarkPlugins={[remarkGfm]} components={{

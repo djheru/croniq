@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { db } from './index.js';
-import type { Job, Run, Analysis, CreateJobInput, UpdateJobInput, RunOutcome } from '../types/index.js';
+import type { Job, Run, CreateJobInput, UpdateJobInput, RunOutcome } from '../types/index.js';
+import type { RunStage, PipelineStage, StageStatus, StageErrorType } from '../agents/types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,8 +22,8 @@ function toJob(row: Record<string, unknown>): Job {
     status: row.status as Job['status'],
     lastRunAt: row.last_run_at as string | undefined,
     nextRunAt: row.next_run_at as string | undefined,
-    analysisPrompt: row.analysis_prompt as string | undefined,
-    analysisSchedule: row.analysis_schedule as string | undefined,
+    jobPrompt: row.job_prompt as string | undefined,
+    jobParams: row.job_params ? JSON.parse(row.job_params as string) : undefined,
     sortOrder: (row.sort_order as number) ?? 0,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -56,10 +57,10 @@ export function hashResult(result: unknown): string {
 
 const insertJob = db.prepare(`
   INSERT INTO jobs (id, name, description, schedule, collector_config, output_format,
-    tags, notify_on_change, webhook_url, retries, timeout_ms, analysis_prompt, analysis_schedule,
+    tags, notify_on_change, webhook_url, retries, timeout_ms, job_prompt, job_params,
     sort_order, status, created_at, updated_at)
   VALUES (@id, @name, @description, @schedule, @collector_config, @output_format,
-    @tags, @notify_on_change, @webhook_url, @retries, @timeout_ms, @analysis_prompt, @analysis_schedule,
+    @tags, @notify_on_change, @webhook_url, @retries, @timeout_ms, @job_prompt, @job_params,
     @sort_order, 'active', @created_at, @updated_at)
 `);
 
@@ -71,7 +72,7 @@ const updateJob = db.prepare(`
     collector_config = @collector_config, output_format = @output_format,
     tags = @tags, notify_on_change = @notify_on_change, webhook_url = @webhook_url,
     retries = @retries, timeout_ms = @timeout_ms,
-    analysis_prompt = @analysis_prompt, analysis_schedule = @analysis_schedule,
+    job_prompt = @job_prompt, job_params = @job_params,
     updated_at = @updated_at
   WHERE id = @id
 `);
@@ -92,8 +93,8 @@ export function createJob(input: CreateJobInput): Job {
     webhook_url: input.webhookUrl ?? null,
     retries: input.retries,
     timeout_ms: input.timeoutMs,
-    analysis_prompt: input.analysisPrompt ?? null,
-    analysis_schedule: input.analysisSchedule ?? '0 * * * *',
+    job_prompt: input.jobPrompt ?? null,
+    job_params: input.jobParams ? JSON.stringify(input.jobParams) : '{}',
     sort_order: max_order + 1,
     created_at: now,
     updated_at: now,
@@ -117,8 +118,8 @@ export function updateJobById(id: string, input: UpdateJobInput): Job | null {
     webhook_url: merged.webhookUrl ?? null,
     retries: merged.retries,
     timeout_ms: merged.timeoutMs,
-    analysis_prompt: merged.analysisPrompt ?? null,
-    analysis_schedule: merged.analysisSchedule ?? '0 * * * *',
+    job_prompt: merged.jobPrompt ?? null,
+    job_params: merged.jobParams ? JSON.stringify(merged.jobParams) : '{}',
     updated_at: new Date().toISOString(),
   });
   return getJob(id);
@@ -227,45 +228,61 @@ export function getRunStats(jobId: string): {
   };
 }
 
-// ─── Analyses ────────────────────────────────────────────────────────────────
+// ─── Run Stages ───────────────────────────────────────────────────────────────
 
-function toAnalysis(row: Record<string, unknown>): Analysis {
+function toRunStage(row: Record<string, unknown>): RunStage {
   return {
     id: row.id as string,
-    jobId: row.job_id as string,
-    prompt: row.prompt as string,
-    response: row.response as string,
-    runIds: JSON.parse(row.run_ids as string),
+    runId: row.run_id as string,
+    stage: row.stage as PipelineStage,
+    status: row.status as StageStatus,
+    output: row.output ? JSON.parse(row.output as string) : undefined,
+    error: row.error as string | undefined,
+    errorType: row.error_type as StageErrorType | undefined,
+    diagnostics: row.diagnostics as string | undefined,
     durationMs: row.duration_ms as number | undefined,
+    modelId: row.model_id as string | undefined,
+    tokenCount: row.token_count as number | undefined,
     createdAt: row.created_at as string,
   };
 }
 
-export function createAnalysis(params: {
-  jobId: string;
-  prompt: string;
-  response: string;
-  runIds: string[];
-  durationMs: number;
-}): Analysis {
+export function createRunStage(params: {
+  runId: string;
+  stage: PipelineStage;
+  status: StageStatus;
+  output?: unknown;
+  error?: string;
+  errorType?: StageErrorType;
+  diagnostics?: string;
+  durationMs?: number;
+  modelId?: string;
+  tokenCount?: number;
+}): RunStage {
   const id = uuidv4();
   db.prepare(`
-    INSERT INTO analyses (id, job_id, prompt, response, run_ids, duration_ms, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, params.jobId, params.prompt, params.response, JSON.stringify(params.runIds), params.durationMs, new Date().toISOString());
-  return listAnalyses(params.jobId, 1)[0];
+    INSERT INTO run_stages (id, run_id, stage, status, output, error, error_type, diagnostics, duration_ms, model_id, token_count, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    params.runId,
+    params.stage,
+    params.status,
+    params.output !== undefined ? JSON.stringify(params.output) : null,
+    params.error ?? null,
+    params.errorType ?? null,
+    params.diagnostics ?? null,
+    params.durationMs ?? null,
+    params.modelId ?? null,
+    params.tokenCount ?? null,
+    new Date().toISOString(),
+  );
+  return toRunStage(db.prepare('SELECT * FROM run_stages WHERE id = ?').get(id) as Record<string, unknown>);
 }
 
-export function listAnalyses(jobId: string, limit = 20): Analysis[] {
-  const rows = db.prepare(`
-    SELECT * FROM analyses WHERE job_id = ? ORDER BY created_at DESC LIMIT ?
-  `).all(jobId, limit) as Record<string, unknown>[];
-  return rows.map(toAnalysis);
-}
-
-export function getLatestAnalysis(jobId: string): Analysis | null {
-  const row = db.prepare(`
-    SELECT * FROM analyses WHERE job_id = ? ORDER BY created_at DESC LIMIT 1
-  `).get(jobId) as Record<string, unknown> | undefined;
-  return row ? toAnalysis(row) : null;
+export function listRunStages(runId: string): RunStage[] {
+  const rows = db.prepare(
+    'SELECT * FROM run_stages WHERE run_id = ? ORDER BY created_at ASC'
+  ).all(runId) as Record<string, unknown>[];
+  return rows.map(toRunStage);
 }

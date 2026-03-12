@@ -85,6 +85,43 @@ function migrate() {
     CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON analyses(created_at DESC);
   `);
 
+  // --- Agent pipeline migration ---
+  // Create run_stages table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS run_stages (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+      stage TEXT NOT NULL,
+      status TEXT NOT NULL,
+      output TEXT,
+      error TEXT,
+      error_type TEXT,
+      diagnostics TEXT,
+      duration_ms INTEGER,
+      model_id TEXT,
+      token_count INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_run_stages_run_id ON run_stages(run_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_run_stages_run_stage ON run_stages(run_id, stage)');
+
+  // Add job_prompt and job_params columns
+  const jobCols = db.prepare("PRAGMA table_info(jobs)").all() as Array<{ name: string }>;
+  const jobColNames = jobCols.map(c => c.name);
+  if (!jobColNames.includes('job_prompt')) {
+    db.exec('ALTER TABLE jobs ADD COLUMN job_prompt TEXT');
+  }
+  if (!jobColNames.includes('job_params')) {
+    db.exec("ALTER TABLE jobs ADD COLUMN job_params TEXT DEFAULT '{}'");
+  }
+
+  // Drop analyses table (data is being discarded)
+  db.exec('DROP TABLE IF EXISTS analyses');
+
+  // Note: analysis_prompt and analysis_schedule columns remain in schema but are ignored
+  // SQLite on the Pi may be pre-3.35, so DROP COLUMN is not safe
+
   console.log('[db] Migrations applied ✓');
 }
 

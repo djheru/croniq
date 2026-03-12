@@ -71,8 +71,8 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
   const [webhookUrl, setWebhookUrl] = useState(initial?.webhookUrl ?? '');
   const [retries, setRetries] = useState(initial?.retries ?? 2);
   const [timeoutMs, setTimeoutMs] = useState(initial?.timeoutMs ?? 30000);
-  const [analysisPrompt, setAnalysisPrompt] = useState(initial?.analysisPrompt ?? '');
-  const [analysisSchedule, setAnalysisSchedule] = useState(initial?.analysisSchedule ?? '0 * * * *');
+  const [jobPrompt, setJobPrompt] = useState(initial?.jobPrompt ?? '');
+  const [jobParams, setJobParams] = useState<Record<string, string>>(initial?.jobParams ?? {});
   const [configError, setConfigError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -99,8 +99,8 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
         notifyOnChange,
         webhookUrl: webhookUrl || undefined,
-        analysisPrompt: analysisPrompt || undefined,
-        analysisSchedule: analysisSchedule || '0 * * * *',
+        jobPrompt: jobPrompt || undefined,
+        jobParams: Object.keys(jobParams).length > 0 ? jobParams : undefined,
         retries, timeoutMs,
       });
     } finally {
@@ -215,41 +215,56 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         </label>
       </div>
 
-      {/* Analysis */}
+      {/* Pipeline Prompt */}
       <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
-        <div style={{ ...fieldStyle }}>
-          <label style={labelStyle}>Analysis Prompt (optional — enables LLM analysis)</label>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>
+            Job Prompt (optional — template for collector instructions)
+          </label>
           <textarea
-            value={analysisPrompt}
-            onChange={e => setAnalysisPrompt(e.target.value)}
+            value={jobPrompt}
+            onChange={(e) => setJobPrompt(e.target.value)}
             rows={3}
             style={{ width: '100%', resize: 'vertical', fontSize: 12 }}
-            placeholder="e.g. Summarize the price trend. Is it trending up, down, or sideways?"
+            placeholder='e.g. Collect weather data for zip code {{zip}}'
           />
+          <span style={{ fontSize: 10, color: 'var(--text-2)' }}>
+            Use {'{{key}}'} syntax for template variables defined in params below
+          </span>
         </div>
 
-        {analysisPrompt && (
+        {jobPrompt && (
           <div style={fieldStyle}>
-            <label style={labelStyle}>Analysis Schedule (cron)</label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-              {[
-                { label: 'Hourly', value: '0 * * * *' },
-                { label: 'Every 6h', value: '0 */6 * * *' },
-                { label: 'Daily 9am', value: '0 9 * * *' },
-              ].map(p => (
-                <button key={p.value} onClick={() => setAnalysisSchedule(p.value)} style={{
-                  padding: '3px 10px', fontSize: 11, borderRadius: 4, cursor: 'pointer',
-                  background: analysisSchedule === p.value ? 'var(--accent-dim)' : 'var(--bg-3)',
-                  border: `1px solid ${analysisSchedule === p.value ? 'var(--accent)' : 'var(--border)'}`,
-                  color: analysisSchedule === p.value ? 'var(--accent)' : 'var(--text-1)',
-                  fontFamily: 'var(--font-mono)',
-                }}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <input value={analysisSchedule} onChange={e => setAnalysisSchedule(e.target.value)}
-              style={{ width: '100%' }} placeholder="0 * * * *" />
+            <label style={labelStyle}>Job Params</label>
+            {Object.entries(jobParams).map(([key, value]) => (
+              <div key={key} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                <input
+                  value={key}
+                  onChange={(e) => {
+                    const newParams = { ...jobParams };
+                    delete newParams[key];
+                    newParams[e.target.value] = value;
+                    setJobParams(newParams);
+                  }}
+                  style={{ width: 120, fontSize: 12 }}
+                  placeholder="key"
+                />
+                <input
+                  value={value}
+                  onChange={(e) => setJobParams({ ...jobParams, [key]: e.target.value })}
+                  style={{ flex: 1, fontSize: 12 }}
+                  placeholder="value"
+                />
+                <Button size="sm" variant="danger" onClick={() => {
+                  const newParams = { ...jobParams };
+                  delete newParams[key];
+                  setJobParams(newParams);
+                }}>✕</Button>
+              </div>
+            ))}
+            <Button size="sm" variant="ghost" onClick={() => {
+              setJobParams({ ...jobParams, ['']: '' });
+            }}>+ Add param</Button>
           </div>
         )}
       </div>

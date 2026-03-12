@@ -31,11 +31,8 @@ export const api = {
   // Runs
   getRuns: (jobId: string) => request<{ data: Run[]; stats: RunStats }>(`/jobs/${jobId}/runs`),
   getLatestRun: (jobId: string) => request<{ data: Run }>(`/jobs/${jobId}/runs/latest`),
-
-  // Analyses
-  getAnalyses: (jobId: string) => request<{ data: Analysis[] }>(`/jobs/${jobId}/analyses`),
-  getLatestAnalysis: (jobId: string) => request<{ data: Analysis }>(`/jobs/${jobId}/analyses/latest`),
-  triggerAnalysis: (jobId: string) => request(`/jobs/${jobId}/analyze`, { method: 'POST' }),
+  getRunStages: (jobId: string, runId: string) =>
+    request<{ data: RunStage[] }>(`/jobs/${jobId}/runs/${runId}/stages`),
 };
 
 export interface Job {
@@ -50,8 +47,8 @@ export interface Job {
   webhookUrl?: string;
   retries: number;
   timeoutMs: number;
-  analysisPrompt?: string;
-  analysisSchedule?: string;
+  jobPrompt?: string;
+  jobParams?: Record<string, string>;
   sortOrder: number;
   status: 'active' | 'paused' | 'error';
   lastRunAt?: string;
@@ -74,13 +71,20 @@ export interface Run {
   resultHash?: string;
 }
 
-export interface Analysis {
+export type PipelineStage = 'collector' | 'summarizer' | 'researcher' | 'editor';
+
+export interface RunStage {
   id: string;
-  jobId: string;
-  prompt: string;
-  response: string;
-  runIds: string[];
+  runId: string;
+  stage: PipelineStage;
+  status: 'success' | 'error' | 'skipped';
+  output?: unknown;
+  error?: string;
+  errorType?: string;
+  diagnostics?: string;
   durationMs?: number;
+  modelId?: string;
+  tokenCount?: number;
   createdAt: string;
 }
 

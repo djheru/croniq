@@ -7,15 +7,6 @@ type ScheduledTask = ReturnType<typeof cron.schedule>;
 
 const tasks = new Map<string, ScheduledTask>();
 
-function getNextRun(schedule: string): string | undefined {
-  try {
-    // node-cron doesn't expose next run time natively; use a simple heuristic
-    return undefined; // extend with croner if needed
-  } catch {
-    return undefined;
-  }
-}
-
 export function scheduleJob(job: Job): void {
   if (tasks.has(job.id)) {
     tasks.get(job.id)?.stop();

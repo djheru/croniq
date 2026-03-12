@@ -71,12 +71,9 @@ const runStage = async <T>(
   }
 };
 
-import { HumanMessage, type BaseMessage } from '@langchain/core/messages';
-import { ResearchOutputSchema } from './types.js';
-
-interface ReactAgentLike {
-  invoke: (input: { messages: BaseMessage[] }) => Promise<{ messages?: BaseMessage[] }>;
-}
+import { HumanMessage } from '@langchain/core/messages';
+import { CollectorOutputSchema, ResearchOutputSchema } from './types.js';
+import type { ReactAgentLike } from './types.js';
 
 // Invoke a createReactAgent agent (collector, researcher) — returns final message content
 const invokeReactAgent = async (agent: ReactAgentLike, message: string): Promise<string> => {
@@ -98,7 +95,9 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
     runId,
     async () => {
       const raw = await invokeReactAgent(collectorAgent, collectorMessage);
-      return JSON.parse(raw) as CollectorOutput;
+      // Strip markdown code fences if present
+      const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '');
+      return CollectorOutputSchema.parse(JSON.parse(cleaned));
     },
     null,
     process.env.COLLECTOR_MODEL_ID ?? 'haiku',
@@ -125,7 +124,8 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
     runId,
     async () => {
       const raw = await invokeReactAgent(researcherAgent, researcherMessage);
-      return ResearchOutputSchema.parse(JSON.parse(raw));
+      const cleaned = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '');
+      return ResearchOutputSchema.parse(JSON.parse(cleaned));
     },
     summarizerResult.data,
     process.env.RESEARCHER_MODEL_ID ?? 'sonnet',

@@ -101,9 +101,18 @@ function CollectorPanel({ data }: { data: unknown }) {
 
   const evalExpression = (input: string) => {
     try {
-      // eslint-disable-next-line no-new-func
-      const fn = new Function('data', `return ${input}`);
-      const result = fn(data);
+      // Safe property-access evaluator — supports dot paths and bracket indexing
+      // e.g. "data.items[0].title", "data.rawData.length"
+      const result = input.split('.').reduce((curr: unknown, segment: string) => {
+        if (curr == null) return undefined;
+        // Handle bracket notation like items[0]
+        const bracketMatch = segment.match(/^(\w+)\[(\d+)\]$/);
+        if (bracketMatch) {
+          const obj = (curr as Record<string, unknown>)[bracketMatch[1]];
+          return Array.isArray(obj) ? obj[Number(bracketMatch[2])] : undefined;
+        }
+        return (curr as Record<string, unknown>)[segment];
+      }, { data } as Record<string, unknown>);
       setReplOutput(JSON.stringify(result, null, 2));
     } catch (e) {
       setReplOutput(String(e));

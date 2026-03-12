@@ -86,3 +86,10 @@ export interface PipelineResult {
   stages: RunStage[];
   report: string | null;
 }
+
+// Shared interface for createReactAgent return type (avoids TS2742 with LangGraph internals)
+export interface ReactAgentLike {
+  invoke: (input: { messages: import('@langchain/core/messages').BaseMessage[] }) => Promise<{
+    messages?: Array<{ content: string | unknown }>;
+  }>;
+}

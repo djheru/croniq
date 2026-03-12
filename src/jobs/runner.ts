@@ -14,6 +14,8 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function runJob(job: Job, nextRunAt?: string): Promise<void> {
+  // Fetch previous run BEFORE creating the new one (for change detection)
+  const previousRun = getLastRun(job.id);
   const { id: runId, startedAt } = createRun(job.id);
   const start = Date.now();
 
@@ -39,8 +41,7 @@ export async function runJob(job: Job, nextRunAt?: string): Promise<void> {
     // Use report for change detection (or summary if editor failed)
     const resultForHash = report ?? JSON.stringify(stages.find((s) => s.stage === 'summarizer')?.output);
     const newHash = hashResult(resultForHash);
-    const lastRun = getLastRun(job.id);
-    const changed = !lastRun?.resultHash || lastRun.resultHash !== newHash;
+    const changed = !previousRun?.resultHash || previousRun.resultHash !== newHash;
 
     finishRun({
       id: runId,

@@ -93,4 +93,6 @@ Structure your report with:
 - Trend analysis (if research data available)
 - Cross-references to related data (if available)
 
+Include hyperlinks wherever source URLs are available — use markdown link syntax [text](url). Every story, article, or data point that has a URL should be linked.
+
 If research was unavailable due to an error, note this briefly and focus on the current collection. Write in a direct, informative tone. Output only the markdown — no wrapping code fences.`;

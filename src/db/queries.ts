@@ -286,3 +286,68 @@ export function listRunStages(runId: string): RunStage[] {
   ).all(runId) as Record<string, unknown>[];
   return rows.map(toRunStage);
 }
+
+// ─── Pipeline Stats ──────────────────────────────────────────────────────────
+
+export interface ModelUsageStats {
+  modelId: string;
+  stageCount: number;
+  successCount: number;
+  errorCount: number;
+  totalTokens: number;
+  avgDurationMs: number;
+}
+
+export interface PipelineStats {
+  totalRuns: number;
+  success: number;
+  failures: number;
+  timeouts: number;
+  avgDurationMs: number;
+  models: ModelUsageStats[];
+}
+
+export function getPipelineStats(sinceIso?: string): PipelineStats {
+  const runWhere = sinceIso ? 'WHERE started_at >= ?' : '';
+  const stageWhere = sinceIso ? 'WHERE created_at >= ?' : '';
+  const params: string[] = sinceIso ? [sinceIso] : [];
+
+  const runs = db.prepare(`
+    SELECT
+      COUNT(*) as total_runs,
+      SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END) as success,
+      SUM(CASE WHEN outcome != 'success' AND outcome != 'timeout' THEN 1 ELSE 0 END) as failures,
+      SUM(CASE WHEN outcome = 'timeout' THEN 1 ELSE 0 END) as timeouts,
+      ROUND(AVG(duration_ms)) as avg_duration_ms
+    FROM runs ${runWhere}
+  `).get(...params) as Record<string, number>;
+
+  const models = db.prepare(`
+    SELECT
+      model_id,
+      COUNT(*) as stage_count,
+      SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as error_count,
+      COALESCE(SUM(token_count), 0) as total_tokens,
+      ROUND(AVG(duration_ms)) as avg_duration_ms
+    FROM run_stages ${stageWhere}
+    GROUP BY model_id
+    ORDER BY total_tokens DESC
+  `).all(...params) as Record<string, unknown>[];
+
+  return {
+    totalRuns: runs.total_runs ?? 0,
+    success: runs.success ?? 0,
+    failures: runs.failures ?? 0,
+    timeouts: runs.timeouts ?? 0,
+    avgDurationMs: runs.avg_duration_ms ?? 0,
+    models: models.map((m) => ({
+      modelId: (m.model_id as string) ?? 'unknown',
+      stageCount: m.stage_count as number,
+      successCount: m.success_count as number,
+      errorCount: m.error_count as number,
+      totalTokens: m.total_tokens as number,
+      avgDurationMs: m.avg_duration_ms as number,
+    })),
+  };
+}

@@ -259,6 +259,9 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
       const res = await api.getRuns(job.id);
       setRuns(res.data);
       setStats(res.stats);
+      if (!selectedRun && res.data.length > 0) {
+        setSelectedRun(res.data[0]);
+      }
     } finally {
       setLoading(false);
     }
@@ -387,7 +390,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
         collapsible={false}
         count={runs.length}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: 20 }}>
           {/* Runs list */}
           <Card>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>

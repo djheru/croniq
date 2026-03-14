@@ -34,7 +34,16 @@ URL: ${'url' in config ? (config as { url: string }).url : 'N/A'}
     prompt += `\nAdditional instructions: ${interpolated}\n`;
   }
 
-  prompt += `\nCall the appropriate tool with the provided parameters and return the collected data. If a tool call fails, report the error — do not retry.`;
+  prompt += `\nCall the appropriate tool with the provided parameters and return the collected data. If a tool call fails, report the error — do not retry.
+
+CRITICAL: Your final response MUST be valid JSON matching this exact schema — no markdown, no commentary, no code fences:
+{
+  "tool": "<the tool you used: html_scrape, browser_scrape, api_fetch, rss_fetch, or graphql_fetch>",
+  "sourceUrl": "<the URL you collected from>",
+  "rawData": <the collected data — object, array, or string>,
+  "itemCount": <number of items collected, or 1 for single objects>,
+  "fetchedAt": "<ISO 8601 timestamp>"
+}`;
 
   return prompt;
 };
@@ -54,7 +63,22 @@ Your tasks:
 2. Search for related jobs and cross-reference findings
 3. Flag anomalies or notable developments
 
-Use your tools to gather evidence before drawing conclusions. Be specific — cite dates, values, and sources.`;
+Use your tools to gather evidence before drawing conclusions. Be specific — cite dates, values, and sources.
+
+CRITICAL: Your final response MUST be valid JSON matching this exact schema — no markdown, no commentary, no code fences:
+{
+  "trends": [
+    { "description": "<trend description>", "confidence": "high|medium|low", "supportingEvidence": ["<evidence 1>", "<evidence 2>"] }
+  ],
+  "relatedFindings": [
+    { "fromJob": "<related job name>", "connection": "<how it relates>", "items": ["<relevant item 1>"] }
+  ],
+  "anomalies": [
+    { "description": "<anomaly description>", "severity": "high|medium|low" }
+  ]
+}
+
+All three arrays are required. Use empty arrays if no trends, related findings, or anomalies are found.`;
 
 export const editorSystemPrompt = (job: Job): string =>
   `You are a report editor. You produce a clear, well-structured GitHub markdown report from the provided summary and research findings.

@@ -14,7 +14,7 @@ const jobs = [
     tags: ["crypto", "prices"],
     notifyOnChange: false,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 120000,
     outputFormat: "json",
     collectorConfig: {
       type: "api",
@@ -35,7 +35,7 @@ Compare to the previous run if available. Highlight any notable divergences betw
     tags: ["weather", "michigan"],
     notifyOnChange: false,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 120000,
     outputFormat: "json",
     collectorConfig: {
       type: "api",
@@ -57,12 +57,12 @@ Flag any notable conditions: temperatures below 20°F or above 90°F, wind speed
     tags: ["news", "tech"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     outputFormat: "json",
     collectorConfig: {
       type: "rss",
       url: "https://hnrss.org/frontpage",
-      maxItems: 15,
+      maxItems: 10,
       fields: ["title", "link", "pubDate"],
     },
     jobPrompt: `Analyze the current Hacker News front page. Categorize each story into one of: AI/ML, Programming, Startups/Business, Science, Security, Show HN, or Other.
@@ -79,7 +79,7 @@ Highlight stories that are particularly relevant to a TypeScript/Node.js develop
     tags: ["monitoring", "aws", "infrastructure"],
     notifyOnChange: true,
     retries: 3,
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     outputFormat: "json",
     collectorConfig: {
       type: "rss",
@@ -105,7 +105,7 @@ Prioritize incidents affecting our key services. Compare against previous runs t
     tags: ["packages", "langchain", "tracking"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 120000,
     outputFormat: "json",
     collectorConfig: {
       type: "api",
@@ -127,7 +127,7 @@ If downloads have dropped more than 20% compared to the previous run, flag this 
     tags: ["github", "project"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     outputFormat: "json",
     collectorConfig: {
       type: "graphql",
@@ -153,7 +153,7 @@ If there are open issues or PRs, briefly categorize them (bug, feature, docs, et
     tags: ["ai", "anthropic", "research"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 60000,
+    timeoutMs: 300000,
     outputFormat: "json",
     collectorConfig: {
       type: "browser",
@@ -184,7 +184,7 @@ Summarize the overall publishing cadence — how frequently is Anthropic posting
     tags: ["monitoring", "github", "devops"],
     notifyOnChange: true,
     retries: 3,
-    timeoutMs: 30000,
+    timeoutMs: 120000,
     outputFormat: "json",
     collectorConfig: {
       type: "api",
@@ -212,12 +212,12 @@ If GitHub Actions or API Requests are degraded, mark as HIGH PRIORITY since thes
     tags: ["news", "npr"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     outputFormat: "json",
     collectorConfig: {
       type: "rss",
       url: "https://feeds.npr.org/1001/rss.xml",
-      maxItems: 15,
+      maxItems: 10,
       fields: ["title", "link", "pubDate", "content"],
     },
     jobPrompt: `Analyze the top stories from NPR. For each story provide:
@@ -237,12 +237,12 @@ Compare to previous runs to identify which stories are new, which are continuing
     tags: ["news", "guardian", "us"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     outputFormat: "json",
     collectorConfig: {
       type: "rss",
       url: "https://www.theguardian.com/us-news/rss",
-      maxItems: 15,
+      maxItems: 10,
       fields: ["title", "link", "pubDate", "content"],
     },
     jobPrompt: `Analyze The Guardian's US news coverage. For each story provide:
@@ -262,12 +262,12 @@ Identify the top 3 most significant stories based on prominence and potential im
     tags: ["news", "wapo", "politics"],
     notifyOnChange: true,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 240000,
     outputFormat: "json",
     collectorConfig: {
       type: "rss",
       url: "https://feeds.washingtonpost.com/rss/national",
-      maxItems: 15,
+      maxItems: 10,
       fields: ["title", "link", "pubDate", "content"],
     },
     jobPrompt: `Analyze The Washington Post's top national stories. For each story provide:
@@ -280,6 +280,35 @@ The Post is known for its political and investigative reporting. Flag any storie
 Identify the top 3 most consequential stories. Compare to previous runs to track which stories are gaining momentum, which are new, and any developing situations with updated details.`,
   },
 
+  // ── Internal ─────────────────────────────────────────────────────────────────
+  {
+    name: "Croniq — Pipeline Stats",
+    description: "Self-monitoring: token usage, costs, and pipeline health",
+    schedule: "0 */6 * * *",
+    tags: ["croniq", "monitoring", "costs"],
+    notifyOnChange: false,
+    retries: 1,
+    timeoutMs: 120000,
+    outputFormat: "json",
+    collectorConfig: {
+      type: "api",
+      url: "http://localhost:3001/api/stats?period=24h",
+    },
+    jobPrompt: `This is Croniq's self-monitoring job. The data comes from Croniq's own /api/stats endpoint. Report:
+
+1. **Pipeline Health**: Total runs, success/failure/timeout counts and rates in the last 24 hours
+2. **Token Usage by Model**: For each model, report total tokens consumed, stage count, and error rate
+3. **Cost Estimate**: Total estimated cost in USD (the API provides blended-rate estimates)
+4. **Performance**: Average pipeline duration — flag if it exceeds 60 seconds
+
+Compare to previous runs to track:
+- Are costs trending up or down? What's the daily run rate?
+- Is any particular model producing more errors than others?
+- Has pipeline duration changed significantly?
+
+If total estimated daily cost exceeds $5.00, flag as HIGH COST. If error rate exceeds 20%, flag as RELIABILITY CONCERN.`,
+  },
+
   // ── Weather ────────────────────────────────────────────────────────────────
   {
     name: "Weather — Gilbert, AZ",
@@ -288,7 +317,7 @@ Identify the top 3 most consequential stories. Compare to previous runs to track
     tags: ["weather", "arizona"],
     notifyOnChange: false,
     retries: 2,
-    timeoutMs: 30000,
+    timeoutMs: 120000,
     outputFormat: "json",
     collectorConfig: {
       type: "api",
@@ -311,6 +340,14 @@ Compare temperature trends against previous runs. During summer months, track ho
 ];
 
 async function seed() {
+  // Clear existing jobs
+  console.log(`Clearing existing jobs from ${BASE}...`);
+  const existing = await fetch(`${BASE}/jobs`).then((r) => r.json());
+  for (const job of existing.data ?? existing) {
+    await fetch(`${BASE}/jobs/${job.id}`, { method: "DELETE" });
+  }
+  console.log(`  Cleared ${(existing.data ?? existing).length} jobs.\n`);
+
   console.log(`Seeding jobs to ${BASE}...\n`);
 
   for (const job of jobs) {

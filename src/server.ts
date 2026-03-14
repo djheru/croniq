@@ -1,3 +1,7 @@
+// Disable LangChain/LangSmith telemetry (noisy 403s when no API key configured)
+process.env.LANGCHAIN_TRACING_V2 = 'false';
+process.env.LANGSMITH_TRACING = 'false';
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';

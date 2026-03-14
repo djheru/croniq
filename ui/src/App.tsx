@@ -1,3 +1,4 @@
+import cronstrue from "cronstrue";
 import { formatDistanceToNow } from "date-fns";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Route, Routes, useNavigate, useParams } from "react-router-dom";
@@ -182,7 +183,7 @@ function JobList({
   }
 
   async function deleteJob(job: Job) {
-    if (!confirm(`Delete "${job.name}"?`)) return;
+    // if (!confirm(`Delete "${job.name}"?`)) return;
     await api.deleteJob(job.id);
     await loadJobs();
   }
@@ -433,9 +434,9 @@ function Header() {
   );
 }
 
-function statusBorderColor(status: Job["status"]): string {
-  if (status === "active") return "rgba(63,185,80,0.35)";
-  if (status === "error") return "rgba(248,81,73,0.35)";
+function statusDividerColor(status: Job["status"]): string {
+  if (status === "active") return "rgba(63,185,80,0.2)";
+  if (status === "error") return "rgba(248,81,73,0.2)";
   return "var(--border)";
 }
 
@@ -486,10 +487,6 @@ function JobCard({
         style={{
           padding: "14px",
           cursor: "pointer",
-          borderLeft: `3px solid ${statusBorderColor(job.status)}`,
-          borderColor:
-            job.status === "error" ? "rgba(248,81,73,0.15)" : undefined,
-          borderLeftColor: statusBorderColor(job.status),
         }}
       >
         {/* Header: drag handle + name + status */}
@@ -554,16 +551,7 @@ function JobCard({
         </div>
 
         {/* Schedule */}
-        <div
-          style={{
-            fontSize: 11,
-            color: "var(--text-2)",
-            fontFamily: "var(--font-mono)",
-            marginBottom: 4,
-          }}
-        >
-          {job.schedule}
-        </div>
+        <CronChip schedule={job.schedule} />
 
         {/* URL */}
         <div
@@ -590,7 +578,7 @@ function JobCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            borderTop: "1px solid var(--border)",
+            borderTop: `1px solid ${statusDividerColor(job.status)}`,
             paddingTop: 8,
           }}
         >
@@ -612,13 +600,59 @@ function JobCard({
             <Button size="sm" variant="ghost" onClick={onEdit}>
               ✎
             </Button>
-            <Button size="sm" variant="danger" onClick={onDelete}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onDelete}
+              style={{
+                color: "rgba(248,81,73,0.45)",
+                borderColor: "rgba(248,81,73,0.2)",
+              }}
+            >
               ✕
             </Button>
           </div>
         </div>
       </Card>
     </div>
+  );
+}
+
+function CronChip({ schedule }: { schedule: string }) {
+  let description: string;
+  try {
+    description = cronstrue.toString(schedule, { use24HourTimeFormat: false });
+  } catch {
+    description = schedule;
+  }
+
+  return (
+    <span
+      title={description}
+      style={{
+        display: "inline-block",
+        fontSize: 11,
+        color: "var(--text-1)",
+        fontFamily: "var(--font-mono)",
+        background: "var(--bg-0)",
+        border: "1px solid var(--border)",
+        borderRadius: 4,
+        padding: "2px 7px",
+        marginBottom: 4,
+        cursor: "default",
+        transition: "border-color 0.15s, color 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--accent)";
+        e.currentTarget.style.color = "var(--text-0)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--border)";
+        e.currentTarget.style.color = "var(--text-1)";
+      }}
+    >
+      {schedule}
+    </span>
   );
 }
 

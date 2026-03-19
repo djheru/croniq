@@ -26,20 +26,26 @@ ssh pi@192.168.1.50
 cd ~/croniq
 git pull
 
-# Import the latest backup (find the most recent timestamp)
-ls -1 backups/*.json | tail -1 | xargs npm run db:seed
+# Import the latest backup
+npm run db:import
 ```
 
 ## Quick Reference
 
 ### Export Current Jobs
 ```bash
-npm run db:export backups/my-backup.json
+npm run db:export                    # Auto-timestamped: backups/1742515200.json
+npm run db:export backups/custom.json # Custom filename
 ```
 
-### Import from Backup
+### Import Most Recent Backup
 ```bash
-npm run db:seed backups/my-backup.json
+npm run db:import
+```
+
+### Import Specific Backup
+```bash
+npm run db:seed backups/1742515200.json
 ```
 
 ### Default Seed (from scripts/seed.ts)

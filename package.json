@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:export": "tsx scripts/export.ts",
+    "db:import": "tsx scripts/import.ts",
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

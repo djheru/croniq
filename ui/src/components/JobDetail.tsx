@@ -314,7 +314,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
         outputFormat: job.outputFormat,
         tags: job.tags,
         notifyOnChange: job.notifyOnChange,
-        webhookUrl: job.webhookUrl,
+        webhookUrl: job.webhookUrl || undefined,
         jobPrompt: job.jobPrompt,
         jobParams: job.jobParams,
         retries: job.retries,

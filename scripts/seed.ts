@@ -1,12 +1,19 @@
 /**
  * Seed jobs for the agent pipeline.
  * Exported from local DB on 2026-03-14.
- * Run: npx tsx scripts/seed.ts
+ *
+ * Usage:
+ *   npx tsx scripts/seed.ts                    # seed with default jobs
+ *   npx tsx scripts/seed.ts backup.json        # seed from exported backup
+ *   CRONIQ_URL=http://192.168.1.50:3001 npx tsx scripts/seed.ts backup.json  # seed Pi from backup
  */
+
+import fs from "fs";
+import path from "path";
 
 const BASE = process.env.CRONIQ_URL ?? "http://localhost:3001/api";
 
-const jobs = [
+const defaultJobs = [
   {
     "name": "News — Multi-Source Aggregation",
     "description": "Aggregated news from The Guardian, Washington Post, and NPR",
@@ -248,6 +255,23 @@ const jobs = [
 ];
 
 async function seed() {
+  // Load jobs from file or use defaults
+  let jobs = defaultJobs;
+  const inputFile = process.argv[2];
+
+  if (inputFile) {
+    const filePath = path.resolve(inputFile);
+    console.log(`Loading jobs from ${filePath}...`);
+    try {
+      const fileContent = fs.readFileSync(filePath, "utf-8");
+      jobs = JSON.parse(fileContent);
+      console.log(`  Loaded ${jobs.length} jobs from file.\n`);
+    } catch (err) {
+      console.error(`✗ Failed to load jobs from file:`, err);
+      process.exit(1);
+    }
+  }
+
   // Clear existing jobs
   console.log(`Clearing existing jobs from ${BASE}...`);
   const existing = await fetch(`${BASE}/jobs`).then((r) => r.json());

@@ -7,3 +7,8 @@ data/
 .DS_Store
 ui/dist/
 .superpowers/
+
+# Backup files (auto-generated, don't commit)
+scripts/backup.json
+
+# Backups directory is versioned, but you can add .gitignore inside it for local backups

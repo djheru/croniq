@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { execSync } from 'child_process';
 import {
   listJobs, getJob, createJob, updateJobById, deleteJob, reorderJobs,
   listRuns, getLastRun, getRunStats, setJobStatus,
@@ -236,4 +237,66 @@ router.get('/stats', (req, res) => {
 
 router.get('/health', (_req, res) => {
   res.json({ status: 'ok', scheduledJobs: getScheduledIds().length });
+});
+
+// ─── System Metrics (Pi) ──────────────────────────────────────────────────────
+
+router.get('/system/metrics', (_req, res) => {
+  try {
+    // Temperature (Linux thermal zone)
+    const tempRaw = execSync('cat /sys/class/thermal/thermal_zone0/temp', { encoding: 'utf-8' }).trim();
+    const tempC = parseInt(tempRaw) / 1000;
+    const tempF = (tempC * 9 / 5) + 32;
+
+    // Memory info
+    const memInfo = execSync('free -m', { encoding: 'utf-8' });
+    const memLines = memInfo.split('\n')[1].split(/\s+/);
+    const memTotal = parseInt(memLines[1]);
+    const memUsed = parseInt(memLines[2]);
+    const memPercent = Math.round((memUsed / memTotal) * 100 * 100) / 100;
+
+    // Disk usage for root filesystem
+    const diskInfo = execSync('df -h /', { encoding: 'utf-8' });
+    const diskLine = diskInfo.split('\n')[1].split(/\s+/);
+    const diskUsed = diskLine[4]; // e.g., "45%"
+    const diskUsedPercent = parseInt(diskUsed.replace('%', ''));
+
+    // Uptime
+    const uptime = execSync('uptime -p', { encoding: 'utf-8' }).trim();
+
+    // CPU load average (1, 5, 15 minutes)
+    const loadavg = execSync('cat /proc/loadavg', { encoding: 'utf-8' }).trim().split(' ');
+    const load1 = parseFloat(loadavg[0]);
+    const load5 = parseFloat(loadavg[1]);
+    const load15 = parseFloat(loadavg[2]);
+
+    res.json({
+      temperature: {
+        celsius: Math.round(tempC * 100) / 100,
+        fahrenheit: Math.round(tempF * 100) / 100,
+      },
+      memory: {
+        totalMB: memTotal,
+        usedMB: memUsed,
+        percentUsed: memPercent,
+      },
+      disk: {
+        percentUsed: diskUsedPercent,
+        raw: diskUsed,
+      },
+      cpu: {
+        load1min: load1,
+        load5min: load5,
+        load15min: load15,
+      },
+      uptime,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'Failed to get system metrics',
+      message: err instanceof Error ? err.message : 'Unknown error',
+      note: 'This endpoint requires Linux with /sys/class/thermal/thermal_zone0/temp (Raspberry Pi)',
+    });
+  }
 });

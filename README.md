@@ -24,9 +24,9 @@ Each job run executes four sequential AI stages:
 | Stage          | Model  | Purpose                                                                                         |
 | -------------- | ------ | ----------------------------------------------------------------------------------------------- |
 | **Collector**  | Haiku  | Gathers raw data using tools (html_scrape, browser_scrape, api_fetch, rss_fetch, graphql_fetch) |
-| **Summarizer** | Sonnet | Produces structured summary with key findings from collected data                               |
-| **Researcher** | Sonnet | Queries historical runs and related jobs to identify trends and anomalies                       |
-| **Editor**     | Opus   | Writes a polished markdown report combining all stage outputs                                   |
+| **Summarizer** | Haiku  | Produces structured summary with key findings from collected data                               |
+| **Researcher** | Haiku  | Queries historical runs and related jobs to identify trends and anomalies                       |
+| **Editor**     | Haiku  | Writes a polished markdown report combining all stage outputs                                   |
 
 If a stage fails, its error payload wraps the previous stage's output so downstream stages can still attempt partial processing.
 
@@ -37,9 +37,9 @@ Each stage reads its model ID from an environment variable with a sensible defau
 | Variable              | Default                                       |
 | --------------------- | --------------------------------------------- |
 | `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `SUMMARIZER_MODEL_ID` | `us.anthropic.claude-sonnet-4-6-v1:0`         |
-| `RESEARCHER_MODEL_ID` | `us.anthropic.claude-sonnet-4-6-v1:0`         |
-| `EDITOR_MODEL_ID`     | `us.anthropic.claude-opus-4-6-v1:0`           |
+| `SUMMARIZER_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `RESEARCHER_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 ---
 
@@ -117,7 +117,22 @@ server {
 
 ## Data Source Configuration Reference
 
-Each job has a `collectorConfig` that tells the Collector agent which data source to use. The agent autonomously selects the appropriate tool based on the config type.
+Each job has a `sources` array containing one or more data sources. The Collector agent processes all sources in parallel using Promise.allSettled() for fault-tolerant collection. Each source can optionally have a name for identification in the output.
+
+```json
+{
+  "sources": [
+    {
+      "name": "The Guardian",
+      "config": { "type": "rss", "url": "https://..." }
+    },
+    {
+      "name": "NPR News",
+      "config": { "type": "rss", "url": "https://..." }
+    }
+  ]
+}
+```
 
 ### `html` — Static HTML scraping (cheerio)
 
@@ -218,6 +233,41 @@ Compatible with Slack incoming webhooks, Discord webhooks, n8n, Make, etc.
 
 ---
 
+## Backup & Sync Workflow
+
+Export and import jobs between environments (local dev ↔ Pi) via git-based backups.
+
+### Export Jobs
+
+```bash
+npm run db:export                    # Creates backups/{timestamp}.json
+npm run db:export backups/custom.json # Custom filename
+```
+
+### Import Jobs
+
+```bash
+npm run db:import                     # Imports most recent backup
+npm run db:seed backups/1742515200.json # Import specific backup
+npm run db:seed                       # Load default seed jobs
+```
+
+### Workflow: Local → Pi
+
+```bash
+# On local machine
+npm run db:export
+git add backups/ && git commit -m "Backup: production jobs" && git push
+
+# On Pi
+git pull
+npm run db:import
+```
+
+See `backups/README.md` for detailed workflow documentation.
+
+---
+
 ## Environment Variables
 
 | Variable              | Default                                       | Description               |
@@ -226,9 +276,9 @@ Compatible with Slack incoming webhooks, Discord webhooks, n8n, Make, etc.
 | `DATA_DIR`            | `./data`                                      | SQLite database directory |
 | `AWS_REGION`          | `us-east-1`                                   | AWS region for Bedrock    |
 | `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Collector stage model     |
-| `SUMMARIZER_MODEL_ID` | `us.anthropic.claude-sonnet-4-6-v1:0`         | Summarizer stage model    |
-| `RESEARCHER_MODEL_ID` | `us.anthropic.claude-sonnet-4-6-v1:0`         | Researcher stage model    |
-| `EDITOR_MODEL_ID`     | `us.anthropic.claude-opus-4-6-v1:0`           | Editor stage model        |
+| `SUMMARIZER_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Summarizer stage model    |
+| `RESEARCHER_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Researcher stage model    |
+| `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Editor stage model        |
 
 AWS Bedrock credentials are required. Configure via standard AWS credential chain (`~/.aws/credentials`, environment variables, or IAM role). See the IAM Roles Anywhere section below for keyless auth on the Pi.
 
@@ -361,11 +411,11 @@ cat > bedrock-policy.json << 'EOF'
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": "bedrock:InvokeModel",
-      "Resource": [
-        "arn:aws:bedrock:*::foundation-model/*",
-        "arn:aws:bedrock:*:*:inference-profile/*"
-      ]
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude*"
     }
   ]
 }
@@ -489,7 +539,10 @@ croniq/
 │   └── api/                   # Express routes + Zod validation
 ├── ui/                        # React + Vite dashboard
 ├── scripts/
-│   └── seed.ts                # 12 example jobs with prompts
+│   ├── seed.ts                # Default example jobs with prompts
+│   ├── export.ts              # Export jobs to timestamped backup
+│   └── import.ts              # Import most recent backup
+├── backups/                   # Versioned job configuration backups
 ├── data/                      # SQLite DB (auto-created)
 ├── .nvmrc                     # Pins Node 22
 └── README.md

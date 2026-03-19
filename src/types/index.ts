@@ -56,6 +56,12 @@ export type CollectorConfig =
   | RssConfig
   | GraphQLConfig;
 
+// A source adds an optional name field to a collector config
+export interface DataSource {
+  name?: string;  // Display name for this source (e.g., "Washington Post", "The Guardian")
+  config: CollectorConfig;
+}
+
 // Selectors map: { fieldName: cssSelector | { selector, attribute, transform } }
 export type SelectorMap = Record<string, string | SelectorSpec>;
 
@@ -81,7 +87,7 @@ export interface Job {
   name: string;
   description?: string;
   schedule: string;           // cron expression
-  collectorConfig: CollectorConfig;
+  sources: DataSource[];      // Array of data sources to collect from
   outputFormat: OutputFormat;
   tags: string[];
   notifyOnChange: boolean;

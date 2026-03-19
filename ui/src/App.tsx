@@ -218,11 +218,11 @@ function JobList({
     await loadJobs();
   };
 
-  const types = [...new Set(jobs.map((j) => j.collectorConfig.type))];
+  const types = [...new Set(jobs.flatMap((j) => j.sources.map(s => s.config.type)))];
 
   const filtered = jobs.filter((j) => {
     if (filterStatus !== "all" && j.status !== filterStatus) return false;
-    if (filterType !== "all" && j.collectorConfig.type !== filterType)
+    if (filterType !== "all" && !j.sources.some(s => s.config.type === filterType))
       return false;
     if (search && !j.name.toLowerCase().includes(search.toLowerCase()))
       return false;
@@ -358,6 +358,7 @@ function JobList({
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
             gap: 10,
+            gridAutoRows: "1fr",
           }}
         >
           {filtered.map((job, index) => (
@@ -480,6 +481,7 @@ function JobCard({
           ? "2px solid var(--accent)"
           : "2px solid transparent",
         transition: "opacity 0.15s",
+        height: "100%",
       }}
     >
       <Card
@@ -487,6 +489,9 @@ function JobCard({
         style={{
           padding: "14px",
           cursor: "pointer",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {/* Header: drag handle + name + status */}
@@ -496,6 +501,7 @@ function JobCard({
             alignItems: "center",
             justifyContent: "space-between",
             marginBottom: 8,
+            flex: "0 0 auto",
           }}
         >
           <div
@@ -538,40 +544,65 @@ function JobCard({
           <StatusBadge status={job.status} />
         </div>
 
-        {/* Tags */}
-        <div
-          style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}
-        >
-          <Badge variant="muted">{job.collectorConfig.type}</Badge>
-          {job.tags.slice(0, 3).map((t) => (
-            <Badge key={t} variant="muted">
-              {t}
-            </Badge>
-          ))}
+        {/* Content area - grows to fill available space */}
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          {/* Tags */}
+          <div
+            style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}
+          >
+            {job.sources.length > 1 ? (
+              <Badge variant="muted">{job.sources.length} sources</Badge>
+            ) : (
+              <Badge variant="muted">{job.sources[0]?.config.type ?? 'unknown'}</Badge>
+            )}
+            {job.tags.slice(0, 3).map((t) => (
+              <Badge key={t} variant="muted">
+                {t}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Schedule */}
+          <CronChip schedule={job.schedule} />
+
+          {/* Sources - constrained height with overflow */}
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--text-2)",
+              fontFamily: "var(--font-mono)",
+              marginBottom: 10,
+              maxHeight: "3.6em", // ~3 lines
+              overflow: "hidden",
+              flex: "0 0 auto",
+            }}
+          >
+            {job.sources.map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  lineHeight: "1.2",
+                }}
+                title={s.config.url as string}
+              >
+                {s.name && `${s.name}: `}
+                {(s.config.url as string)
+                  ?.replace(/^https?:\/\//, "")
+                  .slice(0, 35)}
+              </div>
+            )).slice(0, 2)}
+            {job.sources.length > 2 && (
+              <div style={{ fontStyle: 'italic', opacity: 0.7 }}>
+                +{job.sources.length - 2} more
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Schedule */}
-        <CronChip schedule={job.schedule} />
-
-        {/* URL */}
-        <div
-          style={{
-            fontSize: 10,
-            color: "var(--text-2)",
-            fontFamily: "var(--font-mono)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            marginBottom: 10,
-          }}
-          title={job.collectorConfig.url as string}
-        >
-          {(job.collectorConfig.url as string)
-            ?.replace(/^https?:\/\//, "")
-            .slice(0, 40)}
-        </div>
-
-        {/* Footer: last run + actions */}
+        {/* Footer: last run + actions - always at bottom */}
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
@@ -580,6 +611,8 @@ function JobCard({
             justifyContent: "space-between",
             borderTop: `1px solid ${statusDividerColor(job.status)}`,
             paddingTop: 8,
+            flex: "0 0 auto",
+            marginTop: "auto",
           }}
         >
           <span

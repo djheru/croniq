@@ -29,12 +29,24 @@ export interface StageErrorPayload {
 
 // --- Collector output ---
 
-export const CollectorOutputSchema = z.object({
+// Single source result
+export const SourceResultSchema = z.object({
+  sourceName: z.string().optional().describe('Display name of the source'),
   tool: z.string().describe('Which tool was used: rss_fetch, api_fetch, etc.'),
   sourceUrl: z.string(),
   rawData: z.unknown().describe('The raw data returned by the tool'),
   itemCount: z.number().optional().describe('Number of items if applicable'),
   fetchedAt: z.string().describe('ISO 8601 timestamp'),
+  error: z.string().optional().describe('Error message if collection failed'),
+});
+
+export type SourceResult = z.infer<typeof SourceResultSchema>;
+
+// Multi-source collector output
+export const CollectorOutputSchema = z.object({
+  sources: z.array(SourceResultSchema).describe('Results from each configured source'),
+  totalItems: z.number().describe('Total items collected across all sources'),
+  collectedAt: z.string().describe('ISO 8601 timestamp when collection started'),
 });
 
 export type CollectorOutput = z.infer<typeof CollectorOutputSchema>;
@@ -45,16 +57,17 @@ export const SummaryItemSchema = z.object({
   headline: z.string(),
   summary: z.string().describe('1-2 sentence summary'),
   url: z.string().optional(),
+  source: z.string().optional().describe('Source name this item came from'),
   relevance: z.enum(['high', 'medium', 'low']),
   metadata: z.record(z.unknown()).optional(),
 });
 
 export const SummaryOutputSchema = z.object({
   title: z.string().describe('Brief title for this collection'),
-  sourceUrl: z.string(),
+  sources: z.array(z.string()).describe('List of source names/URLs that were collected'),
   collectedAt: z.string(),
   items: z.array(SummaryItemSchema),
-  overallSummary: z.string().describe('2-3 sentence overview of the collection'),
+  overallSummary: z.string().describe('2-3 sentence overview across all sources'),
 });
 
 export type SummaryOutput = z.infer<typeof SummaryOutputSchema>;

@@ -65,11 +65,16 @@ const CollectorConfigSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
+const DataSourceSchema = z.object({
+  name: z.string().optional(),
+  config: CollectorConfigSchema,
+});
+
 const CreateJobSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   schedule: z.string(),
-  collectorConfig: CollectorConfigSchema,
+  sources: z.array(DataSourceSchema).min(1, 'At least one source is required'),
   outputFormat: z.enum(['json','text','csv','list']).default('json'),
   tags: z.array(z.string()).default([]),
   jobPrompt: z.string().optional(),

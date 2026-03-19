@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from './ui';
-import type { Job } from '../api';
+import type { Job, DataSource } from '../api';
 
 const COLLECTOR_TYPES = ['html', 'browser', 'api', 'rss', 'graphql'] as const;
 
@@ -85,6 +85,13 @@ const PROMPT_EXAMPLES: Record<string, string[]> = {
   ],
 };
 
+interface SourceState {
+  name: string;
+  type: string;
+  configJson: string;
+  configError: string;
+}
+
 interface JobFormProps {
   initial?: Partial<Job>;
   onSubmit: (data: object) => Promise<void>;
@@ -95,50 +102,97 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [schedule, setSchedule] = useState(initial?.schedule ?? '*/15 * * * *');
-  const [collectorType, setCollectorType] = useState<string>(
-    initial?.collectorConfig?.type ?? 'html'
-  );
-  const [configJson, setConfigJson] = useState(
-    JSON.stringify(initial?.collectorConfig ?? EXAMPLE_CONFIGS.html, null, 2)
-  );
+  const [sources, setSources] = useState<SourceState[]>(() => {
+    if (initial?.sources && initial.sources.length > 0) {
+      return initial.sources.map(s => ({
+        name: s.name ?? '',
+        type: s.config.type ?? 'rss',
+        configJson: JSON.stringify(s.config, null, 2),
+        configError: '',
+      }));
+    }
+    return [{
+      name: '',
+      type: 'html',
+      configJson: JSON.stringify(EXAMPLE_CONFIGS.html, null, 2),
+      configError: '',
+    }];
+  });
   const [tags, setTags] = useState((initial?.tags ?? []).join(', '));
   const [notifyOnChange, setNotifyOnChange] = useState(initial?.notifyOnChange ?? false);
   const [webhookUrl, setWebhookUrl] = useState(initial?.webhookUrl ?? '');
   const [retries, setRetries] = useState(initial?.retries ?? 2);
   const [timeoutMs, setTimeoutMs] = useState(initial?.timeoutMs ?? 30000);
   const [jobPrompt, setJobPrompt] = useState(
-    initial?.jobPrompt ?? (initial?.id ? '' : DEFAULT_PROMPTS[initial?.collectorConfig?.type ?? 'html'] ?? '')
+    initial?.jobPrompt ?? (initial?.id ? '' : DEFAULT_PROMPTS[sources[0]?.type ?? 'html'] ?? '')
   );
   const [jobParams, setJobParams] = useState<Record<string, string>>(initial?.jobParams ?? {});
-  const [configError, setConfigError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showDataSource, setShowDataSource] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  function handleTypeChange(type: string) {
-    setCollectorType(type);
-    setConfigJson(JSON.stringify(EXAMPLE_CONFIGS[type] ?? {}, null, 2));
-    // Auto-fill prompt if empty or still set to a previous type's default
-    const isDefault = !jobPrompt || Object.values(DEFAULT_PROMPTS).includes(jobPrompt);
-    if (isDefault) {
-      setJobPrompt(DEFAULT_PROMPTS[type] ?? '');
-    }
+  function handleTypeChange(index: number, type: string) {
+    const updated = [...sources];
+    updated[index].type = type;
+    updated[index].configJson = JSON.stringify(EXAMPLE_CONFIGS[type] ?? {}, null, 2);
+    updated[index].configError = '';
+    setSources(updated);
+  }
+
+  function addSource() {
+    setSources([...sources, {
+      name: '',
+      type: 'rss',
+      configJson: JSON.stringify(EXAMPLE_CONFIGS.rss, null, 2),
+      configError: '',
+    }]);
+  }
+
+  function removeSource(index: number) {
+    if (sources.length === 1) return; // Keep at least one source
+    setSources(sources.filter((_, i) => i !== index));
+  }
+
+  function updateSourceName(index: number, name: string) {
+    const updated = [...sources];
+    updated[index].name = name;
+    setSources(updated);
+  }
+
+  function updateSourceConfig(index: number, configJson: string) {
+    const updated = [...sources];
+    updated[index].configJson = configJson;
+    updated[index].configError = '';
+    setSources(updated);
   }
 
   async function handleSubmit() {
-    let collectorConfig;
-    try {
-      collectorConfig = JSON.parse(configJson);
-      setConfigError('');
-    } catch {
-      setConfigError('Invalid JSON in collector config');
-      return;
+    // Validate all sources
+    const parsedSources: DataSource[] = [];
+    let hasError = false;
+
+    for (let i = 0; i < sources.length; i++) {
+      try {
+        const config = JSON.parse(sources[i].configJson);
+        parsedSources.push({
+          name: sources[i].name || undefined,
+          config,
+        });
+      } catch {
+        const updated = [...sources];
+        updated[i].configError = 'Invalid JSON';
+        setSources(updated);
+        hasError = true;
+      }
     }
+
+    if (hasError) return;
 
     setSubmitting(true);
     try {
       await onSubmit({
-        name, description, schedule, collectorConfig,
+        name, description, schedule,
+        sources: parsedSources,
         outputFormat: 'json',
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
         notifyOnChange,
@@ -177,7 +231,7 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         <div style={{ ...fieldBox, gridColumn: '1 / -1' }}>
           <label style={fieldLabel}>Job Name *</label>
           <input value={name} onChange={e => setName(e.target.value)}
-            style={{ width: '100%' }} placeholder="e.g. BTC Price Monitor" />
+            style={{ width: '100%' }} placeholder="e.g. News Aggregation" />
         </div>
         <div style={fieldBox}>
           <label style={fieldLabel}>Description</label>
@@ -187,7 +241,7 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         <div style={fieldBox}>
           <label style={fieldLabel}>Tags (comma-separated)</label>
           <input value={tags} onChange={e => setTags(e.target.value)}
-            style={{ width: '100%' }} placeholder="prices, crypto, alerts" />
+            style={{ width: '100%' }} placeholder="news, aggregation" />
         </div>
       </div>
 
@@ -208,14 +262,14 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
             onChange={e => setJobPrompt(e.target.value)}
             rows={4}
             style={{ width: '100%', resize: 'vertical', fontSize: 12 }}
-            placeholder="Tell the agent what to collect, what to look for, and how to analyze it..."
+            placeholder="Tell the agent what to collect, what to look for, and how to analyze it across all sources..."
           />
           <div style={{ marginTop: 6 }}>
             <span style={{ fontSize: 10, color: 'var(--text-2)', display: 'block', marginBottom: 4 }}>
-              Examples for {collectorType} — click to use:
+              Examples for {sources[0]?.type ?? 'rss'} — click to use:
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {(PROMPT_EXAMPLES[collectorType] ?? []).map((ex, i) => (
+              {(PROMPT_EXAMPLES[sources[0]?.type ?? 'rss'] ?? []).map((ex, i) => (
                 <button key={i} onClick={() => setJobPrompt(ex)} style={{
                   background: 'var(--bg-3)', border: '1px solid var(--border)',
                   borderRadius: 4, padding: '4px 10px', fontSize: 11,
@@ -291,10 +345,10 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
         </div>
       </div>
 
-      {/* ── Data Source ── */}
+      {/* ── Data Sources ── */}
       <div style={sectionStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showDataSource ? 12 : 0 }}>
-          <span style={sectionLabel}>Data Source</span>
+          <span style={sectionLabel}>Data Sources ({sources.length})</span>
           <button onClick={() => setShowDataSource(!showDataSource)} style={toggleButton}>
             {showDataSource ? '▾ Hide' : '▸ Configure'}
           </button>
@@ -302,33 +356,68 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
 
         {showDataSource && (
           <>
-            <div style={fieldBox}>
-              <label style={fieldLabel}>Source Type *</label>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                {COLLECTOR_TYPES.map(t => (
-                  <button key={t} onClick={() => handleTypeChange(t)} style={{
-                    padding: '4px 12px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
-                    background: collectorType === t ? 'var(--accent-dim)' : 'var(--bg-3)',
-                    border: `1px solid ${collectorType === t ? 'var(--accent)' : 'var(--border)'}`,
-                    color: collectorType === t ? 'var(--accent)' : 'var(--text-1)',
-                    fontFamily: 'var(--font-mono)',
-                  }}>
-                    {t}
-                  </button>
-                ))}
-              </div>
+            {sources.map((source, index) => (
+              <div key={index} style={{
+                marginBottom: 16,
+                padding: 12,
+                background: 'var(--bg-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ ...sectionLabel, fontSize: 10 }}>
+                    Source {index + 1} {source.name && `— ${source.name}`}
+                  </span>
+                  {sources.length > 1 && (
+                    <Button size="sm" variant="danger" onClick={() => removeSource(index)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
 
-              <label style={fieldLabel}>Source Config (JSON) *</label>
-              <textarea
-                value={configJson}
-                onChange={e => setConfigJson(e.target.value)}
-                rows={10}
-                style={{ width: '100%', resize: 'vertical', fontSize: 12 }}
-              />
-              {configError && (
-                <div style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}>{configError}</div>
-              )}
-            </div>
+                <div style={fieldBox}>
+                  <label style={fieldLabel}>Source Name (optional)</label>
+                  <input
+                    value={source.name}
+                    onChange={e => updateSourceName(index, e.target.value)}
+                    style={{ width: '100%' }}
+                    placeholder="e.g. Washington Post, The Guardian"
+                  />
+                </div>
+
+                <div style={fieldBox}>
+                  <label style={fieldLabel}>Source Type *</label>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    {COLLECTOR_TYPES.map(t => (
+                      <button key={t} onClick={() => handleTypeChange(index, t)} style={{
+                        padding: '4px 12px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
+                        background: source.type === t ? 'var(--accent-dim)' : 'var(--bg-3)',
+                        border: `1px solid ${source.type === t ? 'var(--accent)' : 'var(--border)'}`,
+                        color: source.type === t ? 'var(--accent)' : 'var(--text-1)',
+                        fontFamily: 'var(--font-mono)',
+                      }}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label style={fieldLabel}>Source Config (JSON) *</label>
+                  <textarea
+                    value={source.configJson}
+                    onChange={e => updateSourceConfig(index, e.target.value)}
+                    rows={8}
+                    style={{ width: '100%', resize: 'vertical', fontSize: 11, fontFamily: 'var(--font-mono)' }}
+                  />
+                  {source.configError && (
+                    <div style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4 }}>{source.configError}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <Button size="sm" variant="ghost" onClick={addSource}>
+              + Add Source
+            </Button>
           </>
         )}
       </div>
@@ -379,7 +468,7 @@ export function JobForm({ initial, onSubmit, onCancel }: JobFormProps) {
       {/* ── Actions ── */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, marginTop: 8 }}>
         <Button onClick={onCancel} variant="ghost">Cancel</Button>
-        <Button onClick={handleSubmit} variant="primary" disabled={submitting || !name}>
+        <Button onClick={handleSubmit} variant="primary" disabled={submitting || !name || sources.length === 0}>
           {submitting ? 'Saving...' : initial?.id ? 'Update Job' : 'Create Job'}
         </Button>
       </div>

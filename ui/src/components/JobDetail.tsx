@@ -252,6 +252,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [scheduleInput, setScheduleInput] = useState(job.schedule);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [cloning, setCloning] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -301,6 +302,35 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
     }
   }
 
+  async function clone() {
+    setCloning(true);
+    try {
+      // Create a copy of the job with "Copy of " prefix
+      await api.createJob({
+        name: `Copy of ${job.name}`,
+        description: job.description,
+        schedule: job.schedule,
+        sources: job.sources,
+        outputFormat: job.outputFormat,
+        tags: job.tags,
+        notifyOnChange: job.notifyOnChange,
+        webhookUrl: job.webhookUrl,
+        jobPrompt: job.jobPrompt,
+        jobParams: job.jobParams,
+        retries: job.retries,
+        timeoutMs: job.timeoutMs,
+      });
+      // Refresh the parent job list and go back
+      onJobUpdated?.();
+      onBack();
+    } catch (err) {
+      console.error('Failed to clone job:', err);
+      alert('Failed to clone job');
+    } finally {
+      setCloning(false);
+    }
+  }
+
   const successRate = stats ? Math.round((stats.success / (stats.total || 1)) * 100) : 0;
 
   return (
@@ -315,7 +345,11 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h2 style={{ fontSize: 18, fontWeight: 600 }}>{job.name}</h2>
             <StatusBadge status={job.status} />
-            <Badge variant="muted">{job.collectorConfig.type}</Badge>
+            {job.sources.length > 1 ? (
+              <Badge variant="muted">{job.sources.length} sources</Badge>
+            ) : (
+              <Badge variant="muted">{job.sources[0]?.config.type ?? 'unknown'}</Badge>
+            )}
             {job.tags.map(t => <Badge key={t} variant="muted">{t}</Badge>)}
           </div>
           {job.description && (
@@ -325,6 +359,9 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
         <div style={{ display: 'flex', gap: 8 }}>
           <Button size="sm" onClick={trigger} disabled={triggering} variant="ghost">
             {triggering ? <Spinner /> : '▶'} Run now
+          </Button>
+          <Button size="sm" onClick={clone} disabled={cloning} variant="ghost">
+            {cloning ? <Spinner /> : '⎘'} Clone
           </Button>
           <Button size="sm" onClick={onEdit} variant="ghost">✎ Edit</Button>
         </div>

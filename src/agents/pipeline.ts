@@ -90,7 +90,7 @@ const runStage = async <T>(
 };
 
 import { HumanMessage } from '@langchain/core/messages';
-import { CollectorOutputSchema, ResearchOutputSchema } from './types.js';
+import { CollectorOutputSchema, ResearchOutputSchema, SourceResultSchema, type SourceResult } from './types.js';
 import type { ReactAgentLike } from './types.js';
 
 // Extract JSON from LLM output that may contain markdown, commentary, or code fences
@@ -140,19 +140,99 @@ const invokeReactAgent = async (agent: ReactAgentLike, message: string): Promise
 export const runPipeline = async (job: Job, runId: string): Promise<PipelineResult> => {
   const stages: RunStage[] = [];
 
-  // Stage 1: Collector (React agent with tools)
-  const collectorAgent = createCollectorAgent(job);
-  const collectorMessage = `Collect data from: ${'url' in job.collectorConfig ? (job.collectorConfig as { url: string }).url : 'configured source'}`;
+  // Stage 1: Collector (run all sources in parallel, aggregate results)
   const collectorResult = await runStage<CollectorOutput>(
     'collector',
     runId,
     async () => {
-      const { content, tokenCount } = await invokeReactAgent(collectorAgent, collectorMessage);
-      const json = extractJson(content);
-      return { data: CollectorOutputSchema.parse(JSON.parse(json)), tokenCount };
+      const collectedAt = new Date().toISOString();
+
+      console.log(`[pipeline] Collecting from ${job.sources.length} source${job.sources.length !== 1 ? 's' : ''} in parallel...`);
+
+      // Collect from all sources in parallel
+      const collectionPromises = job.sources.map(async (source) => {
+        const sourceName = source.name ?? source.config.type;
+        console.log(`[pipeline] → Starting collection: ${sourceName}`);
+
+        try {
+          const agent = createCollectorAgent(source.name, source.config, job);
+          const url = 'url' in source.config ? (source.config as { url: string }).url : 'N/A';
+          const message = `Collect data from: ${url}`;
+
+          const { content, tokenCount } = await invokeReactAgent(agent, message);
+
+          const json = extractJson(content);
+          const singleResult = SourceResultSchema.parse(JSON.parse(json));
+
+          console.log(`[pipeline] ✓ ${sourceName}: ${singleResult.itemCount ?? 0} items, ${tokenCount.toLocaleString()} tokens`);
+
+          // Add source name to result
+          return {
+            result: {
+              ...singleResult,
+              sourceName: source.name,
+            } as SourceResult,
+            tokenCount,
+          };
+        } catch (err) {
+          // If a source fails, record error but return partial result
+          const error = err instanceof Error ? err.message : String(err);
+          console.error(`[pipeline] ✗ ${sourceName} failed:`, error);
+
+          return {
+            result: {
+              sourceName: source.name,
+              tool: source.config.type,
+              sourceUrl: 'url' in source.config ? (source.config as { url: string }).url : 'unknown',
+              rawData: null,
+              fetchedAt: new Date().toISOString(),
+              error,
+            } as SourceResult,
+            tokenCount: 0,
+          };
+        }
+      });
+
+      // Wait for all collections to complete (or fail)
+      const settled = await Promise.allSettled(collectionPromises);
+
+      // Extract results and sum tokens
+      const sourceResults: SourceResult[] = [];
+      let totalTokens = 0;
+
+      for (const outcome of settled) {
+        if (outcome.status === 'fulfilled') {
+          sourceResults.push(outcome.value.result);
+          totalTokens += outcome.value.tokenCount;
+        } else {
+          // Promise itself rejected (shouldn't happen since we catch errors inside)
+          console.error(`[pipeline] Unexpected promise rejection:`, outcome.reason);
+          sourceResults.push({
+            sourceName: 'unknown',
+            tool: 'unknown',
+            sourceUrl: 'unknown',
+            rawData: null,
+            fetchedAt: new Date().toISOString(),
+            error: String(outcome.reason),
+          });
+        }
+      }
+
+      // Aggregate into multi-source output
+      const totalItems = sourceResults.reduce((sum, r) => sum + (r.itemCount ?? 0), 0);
+      const aggregated: CollectorOutput = {
+        sources: sourceResults,
+        totalItems,
+        collectedAt,
+      };
+
+      const successCount = sourceResults.filter(r => !r.error).length;
+      console.log(`[pipeline] Collection complete: ${successCount}/${job.sources.length} sources succeeded, ${totalItems} total items`);
+
+      return { data: aggregated, tokenCount: totalTokens };
     },
     null,
-    process.env.COLLECTOR_MODEL_ID ?? 'sonnet-4.6',
+    process.env.COLLECTOR_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   );
   stages.push(collectorResult.stage);
 
@@ -164,7 +244,7 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
     runId,
     async () => summarizerAgent.invoke(summarizerMessage),
     collectorResult.data,
-    process.env.SUMMARIZER_MODEL_ID ?? 'haiku-4.5',
+    process.env.SUMMARIZER_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   );
   stages.push(summarizerResult.stage);
 
@@ -180,7 +260,7 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
       return { data: ResearchOutputSchema.parse(JSON.parse(json)), tokenCount };
     },
     summarizerResult.data,
-    process.env.RESEARCHER_MODEL_ID ?? 'sonnet-4.6',
+    process.env.RESEARCHER_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   );
   stages.push(researcherResult.stage);
 
@@ -198,7 +278,7 @@ ${JSON.stringify(researcherResult.data, null, 2)}`;
     runId,
     async () => editorAgent.invoke(editorMessage),
     { summary: summarizerResult.data, research: researcherResult.data },
-    process.env.EDITOR_MODEL_ID ?? 'haiku-4.5',
+    process.env.EDITOR_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   );
   stages.push(editorResult.stage);
 

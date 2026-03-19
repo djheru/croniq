@@ -119,8 +119,33 @@ function migrate() {
   // Drop analyses table (data is being discarded)
   db.exec('DROP TABLE IF EXISTS analyses');
 
+  // --- Multi-source migration ---
+  // Add sources column and migrate collector_config to sources array
+  if (!jobColNames.includes('sources')) {
+    console.log('[db] Migrating collector_config to sources array...');
+    db.exec('ALTER TABLE jobs ADD COLUMN sources TEXT');
+
+    // Wrap each existing collector_config in a sources array
+    const jobs = db.prepare('SELECT id, collector_config FROM jobs').all() as Array<{ id: string; collector_config: string }>;
+    const updateStmt = db.prepare('UPDATE jobs SET sources = ? WHERE id = ?');
+
+    for (const job of jobs) {
+      try {
+        const config = JSON.parse(job.collector_config);
+        // Wrap single config in array with no name (can be named manually later)
+        const sources = [{ config }];
+        updateStmt.run(JSON.stringify(sources), job.id);
+      } catch (err) {
+        console.error(`[db] Failed to migrate job ${job.id}:`, err);
+      }
+    }
+
+    console.log(`[db] Migrated ${jobs.length} jobs to multi-source format`);
+  }
+
   // Note: analysis_prompt and analysis_schedule columns remain in schema but are ignored
   // SQLite on the Pi may be pre-3.35, so DROP COLUMN is not safe
+  // collector_config column also remains but is no longer used (sources is authoritative)
 
   console.log('[db] Migrations applied ✓');
 }

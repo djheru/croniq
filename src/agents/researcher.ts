@@ -7,7 +7,7 @@ import { researcherSystemPrompt } from './prompts.js';
 import { queryRuns } from './tools/query-runs.js';
 import { searchJobs } from './tools/search-jobs.js';
 
-const RESEARCHER_MODEL_ID = process.env.RESEARCHER_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-6';
+const RESEARCHER_MODEL_ID = process.env.RESEARCHER_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 
 export const createResearcherAgent = (job: Job): ReactAgentLike => {
   const model = new ChatBedrockConverse({

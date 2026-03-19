@@ -35,12 +35,17 @@ export const api = {
     request<{ data: RunStage[] }>(`/jobs/${jobId}/runs/${runId}/stages`),
 };
 
+export interface DataSource {
+  name?: string;
+  config: { type: string; url?: string; [k: string]: unknown };
+}
+
 export interface Job {
   id: string;
   name: string;
   description?: string;
   schedule: string;
-  collectorConfig: { type: string; url: string; [k: string]: unknown };
+  sources: DataSource[];
   outputFormat: string;
   tags: string[];
   notifyOnChange: boolean;

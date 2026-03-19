@@ -12,7 +12,7 @@ function toJob(row: Record<string, unknown>): Job {
     name: row.name as string,
     description: row.description as string | undefined,
     schedule: row.schedule as string,
-    collectorConfig: JSON.parse(row.collector_config as string),
+    sources: JSON.parse(row.sources as string),
     outputFormat: row.output_format as Job['outputFormat'],
     tags: JSON.parse(row.tags as string),
     notifyOnChange: Boolean(row.notify_on_change),
@@ -56,10 +56,10 @@ export function hashResult(result: unknown): string {
 // ─── Jobs ─────────────────────────────────────────────────────────────────────
 
 const insertJob = db.prepare(`
-  INSERT INTO jobs (id, name, description, schedule, collector_config, output_format,
+  INSERT INTO jobs (id, name, description, schedule, collector_config, sources, output_format,
     tags, notify_on_change, webhook_url, retries, timeout_ms, job_prompt, job_params,
     sort_order, status, created_at, updated_at)
-  VALUES (@id, @name, @description, @schedule, @collector_config, @output_format,
+  VALUES (@id, @name, @description, @schedule, @collector_config, @sources, @output_format,
     @tags, @notify_on_change, @webhook_url, @retries, @timeout_ms, @job_prompt, @job_params,
     @sort_order, 'active', @created_at, @updated_at)
 `);
@@ -69,7 +69,7 @@ const getMaxSortOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as max_
 const updateJob = db.prepare(`
   UPDATE jobs SET
     name = @name, description = @description, schedule = @schedule,
-    collector_config = @collector_config, output_format = @output_format,
+    collector_config = @collector_config, sources = @sources, output_format = @output_format,
     tags = @tags, notify_on_change = @notify_on_change, webhook_url = @webhook_url,
     retries = @retries, timeout_ms = @timeout_ms,
     job_prompt = @job_prompt, job_params = @job_params,
@@ -81,12 +81,15 @@ export function createJob(input: CreateJobInput): Job {
   const now = new Date().toISOString();
   const id = uuidv4();
   const { max_order } = getMaxSortOrder.get() as { max_order: number };
+  // Write first source's config to collector_config for backward compatibility
+  const firstSourceConfig = input.sources[0]?.config ?? { type: 'html', url: '' };
   insertJob.run({
     id,
     name: input.name,
     description: input.description ?? null,
     schedule: input.schedule,
-    collector_config: JSON.stringify(input.collectorConfig),
+    collector_config: JSON.stringify(firstSourceConfig),
+    sources: JSON.stringify(input.sources),
     output_format: input.outputFormat,
     tags: JSON.stringify(input.tags),
     notify_on_change: input.notifyOnChange ? 1 : 0,
@@ -106,12 +109,15 @@ export function updateJobById(id: string, input: UpdateJobInput): Job | null {
   const existing = getJob(id);
   if (!existing) return null;
   const merged = { ...existing, ...input };
+  // Write first source's config to collector_config for backward compatibility
+  const firstSourceConfig = merged.sources[0]?.config ?? { type: 'html', url: '' };
   updateJob.run({
     id,
     name: merged.name,
     description: merged.description ?? null,
     schedule: merged.schedule,
-    collector_config: JSON.stringify(merged.collectorConfig),
+    collector_config: JSON.stringify(firstSourceConfig),
+    sources: JSON.stringify(merged.sources),
     output_format: merged.outputFormat,
     tags: JSON.stringify(merged.tags),
     notify_on_change: merged.notifyOnChange ? 1 : 0,

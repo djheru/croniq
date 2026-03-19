@@ -1,11 +1,11 @@
-import type { Job } from '../types/index.js';
+import type { Job, CollectorConfig } from '../types/index.js';
 
-export const collectorSystemPrompt = (job: Job): string => {
-  const config = job.collectorConfig;
+export const collectorSystemPrompt = (sourceName: string | undefined, config: CollectorConfig, job: Job): string => {
   const params = job.jobParams ?? {};
 
   let prompt = `You are a data collector agent. Your job is to collect data from the specified source using the appropriate tool.
 
+Source name: ${sourceName ?? 'Unnamed source'}
 Source type: ${config.type}
 URL: ${'url' in config ? (config as { url: string }).url : 'N/A'}
 `;
@@ -49,9 +49,13 @@ CRITICAL: Your final response MUST be valid JSON matching this exact schema — 
 };
 
 export const summarizerSystemPrompt = (job: Job): string =>
-  `You are a data summarizer. You receive raw collected data and produce a standardized summary.
+  `You are a data summarizer. You receive raw collected data from multiple sources and produce a standardized summary.
+
+The job may collect from multiple sources (e.g., Washington Post, The Guardian, NPR). Aggregate items across all sources.
 
 Rate each item's relevance based on the job's purpose: "${job.description ?? job.name}"
+
+Tag each summary item with its source name so it's clear where the data came from.
 
 Be concise. Preserve key facts, links, and data points. Do not editorialize — save analysis for later stages.`;
 

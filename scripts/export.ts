@@ -3,8 +3,8 @@
  * Export all jobs from Croniq to a JSON file for backup
  *
  * Usage:
- *   npm run db:export                                    # exports to scripts/backup.json
- *   npm run db:export backups/2026-03-18.json            # exports to custom file
+ *   npm run db:export                                    # exports to backups/{timestamp}.json
+ *   npm run db:export backups/custom-name.json           # exports to custom file
  */
 
 import fs from "fs";
@@ -13,7 +13,7 @@ import path from "path";
 const BASE = process.env.CRONIQ_URL ?? "http://localhost:3001/api";
 
 async function exportJobs() {
-  const outputFile = process.argv[2] ?? "scripts/backup.json";
+  const outputFile = process.argv[2] ?? `backups/${Math.floor(Date.now() / 1000)}.json`;
   const outputPath = path.resolve(outputFile);
 
   console.log(`Exporting jobs from ${BASE}...`);
@@ -31,7 +31,7 @@ async function exportJobs() {
       throw new Error("Expected jobs array from API");
     }
 
-    // Transform jobs to seed format (strip runtime fields)
+    // Transform jobs to seed format (strip runtime fields, convert null to undefined)
     const exportedJobs = jobs.map((job: any) => ({
       name: job.name,
       description: job.description,
@@ -40,7 +40,7 @@ async function exportJobs() {
       outputFormat: job.outputFormat,
       tags: job.tags,
       notifyOnChange: job.notifyOnChange,
-      webhookUrl: job.webhookUrl,
+      webhookUrl: job.webhookUrl || undefined,
       retries: job.retries,
       timeoutMs: job.timeoutMs,
       jobPrompt: job.jobPrompt,

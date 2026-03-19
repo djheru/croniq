@@ -8,11 +8,11 @@ This directory contains versioned backups of Croniq job configurations.
 
 ```bash
 # Export current jobs to a timestamped backup
-npm run db:export backups/$(date +%Y-%m-%d)-production.json
+npm run db:export
 
 # Commit to git
 git add backups/
-git commit -m "Backup: production jobs $(date +%Y-%m-%d)"
+git commit -m "Backup: production jobs"
 git push
 ```
 
@@ -26,8 +26,8 @@ ssh pi@192.168.1.50
 cd ~/croniq
 git pull
 
-# Import the backup
-npm run db:seed backups/2026-03-18-production.json
+# Import the latest backup (find the most recent timestamp)
+ls -1 backups/*.json | tail -1 | xargs npm run db:seed
 ```
 
 ## Quick Reference
@@ -50,6 +50,6 @@ npm run db:seed
 ## Best Practices
 
 - **Always export before major changes** - create a timestamped backup first
-- **Use descriptive names**: `YYYY-MM-DD-description.json`
+- **Automatic timestamps** - exports default to Unix timestamp filenames
 - **Commit production states** to version control after significant changes
 - **Test locally first** before deploying to Pi

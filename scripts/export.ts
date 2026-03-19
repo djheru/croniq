@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
- * Export all jobs from Croniq to a JSON file for backup/sync
+ * Export all jobs from Croniq to a JSON file for backup
  *
  * Usage:
- *   npx tsx scripts/export.ts                    # exports to scripts/backup.json
- *   npx tsx scripts/export.ts my-backup.json     # exports to custom file
- *   CRONIQ_URL=http://192.168.1.50:3001 npx tsx scripts/export.ts  # export from Pi
+ *   npm run db:export                                    # exports to scripts/backup.json
+ *   npm run db:export backups/2026-03-18.json            # exports to custom file
  */
 
 import fs from "fs";

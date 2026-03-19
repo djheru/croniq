@@ -1,11 +1,9 @@
 /**
  * Seed jobs for the agent pipeline.
- * Exported from local DB on 2026-03-14.
  *
  * Usage:
- *   npx tsx scripts/seed.ts                    # seed with default jobs
- *   npx tsx scripts/seed.ts backup.json        # seed from exported backup
- *   CRONIQ_URL=http://192.168.1.50:3001 npx tsx scripts/seed.ts backup.json  # seed Pi from backup
+ *   npm run db:seed                              # seed with default jobs from this file
+ *   npm run db:seed backups/2026-03-18.json      # seed from exported backup
  */
 
 import fs from "fs";

@@ -2,41 +2,54 @@
 
 This directory contains versioned backups of Croniq job configurations.
 
-## Creating a Backup
+## Workflow: Local Dev → Pi
+
+### 1. Export Jobs on Local Workstation
 
 ```bash
 # Export current jobs to a timestamped backup
-npx tsx scripts/export.ts backups/$(date +%Y-%m-%d)-production.json
+npm run db:export backups/$(date +%Y-%m-%d)-production.json
 
-# Or use npm script
+# Commit to git
+git add backups/
+git commit -m "Backup: production jobs $(date +%Y-%m-%d)"
+git push
+```
+
+### 2. Import Jobs on Pi
+
+```bash
+# SSH to Pi
+ssh pi@192.168.1.50
+
+# Pull latest code (includes backup file)
+cd ~/croniq
+git pull
+
+# Import the backup
+npm run db:seed backups/2026-03-18-production.json
+```
+
+## Quick Reference
+
+### Export Current Jobs
+```bash
 npm run db:export backups/my-backup.json
 ```
 
-## Restoring from a Backup
-
+### Import from Backup
 ```bash
-# Restore to local
-npx tsx scripts/seed.ts backups/2026-03-18-production.json
+npm run db:seed backups/my-backup.json
+```
 
-# Restore to Pi
-CRONIQ_URL=http://192.168.1.50:3001 npx tsx scripts/seed.ts backups/2026-03-18-production.json
+### Default Seed (from scripts/seed.ts)
+```bash
+npm run db:seed
 ```
 
 ## Best Practices
 
-- **Commit production backups** to version control after significant changes
-- Use descriptive names: `YYYY-MM-DD-description.json`
-- Keep `backup.json` as the working sync file (gitignored)
-- Before major changes, create a timestamped backup first
-
-## Sync Workflows
-
-See `scripts/sync.ts` for convenience commands:
-
-```bash
-# Quick sync local → Pi
-npm run sync:local-to-pi
-
-# Quick sync Pi → local
-npm run sync:pi-to-local
-```
+- **Always export before major changes** - create a timestamped backup first
+- **Use descriptive names**: `YYYY-MM-DD-description.json`
+- **Commit production states** to version control after significant changes
+- **Test locally first** before deploying to Pi

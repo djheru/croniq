@@ -249,6 +249,28 @@ const defaultJobs = [
       }
     }],
     "jobPrompt": "This is Croniq's self-monitoring job. The data comes from Croniq's own /api/stats endpoint. Report:\n\n1. **Pipeline Health**: Total runs, success/failure/timeout counts and rates in the last 24 hours\n2. **Token Usage by Model**: For each model, report total tokens consumed, stage count, and error rate\n3. **Cost Estimate**: Total estimated cost in USD (the API provides blended-rate estimates)\n4. **Performance**: Average pipeline duration — flag if it exceeds 60 seconds\n\nCompare to previous runs to track:\n- Are costs trending up or down? What's the daily run rate?\n- Is any particular model producing more errors than others?\n- Has pipeline duration changed significantly?\n\nIf total estimated daily cost exceeds $5.00, flag as HIGH COST. If error rate exceeds 20%, flag as RELIABILITY CONCERN."
+  },
+  {
+    "name": "Pi System Health",
+    "description": "Raspberry Pi temperature, CPU load, memory, and disk monitoring",
+    "schedule": "*/10 * * * *",
+    "tags": [
+      "monitoring",
+      "system",
+      "pi"
+    ],
+    "notifyOnChange": false,
+    "retries": 1,
+    "timeoutMs": 60000,
+    "outputFormat": "json",
+    "sources": [{
+      "name": "Pi System Metrics",
+      "config": {
+        "type": "api",
+        "url": "http://localhost:3001/api/system/metrics"
+      }
+    }],
+    "jobPrompt": "Monitor Raspberry Pi system health and flag concerning conditions:\n\n**Temperature:**\n- Current CPU temperature in both Celsius and Fahrenheit\n- Flag as WARNING if >70°C (158°F)\n- Flag as CRITICAL if >80°C (176°F)\n\n**CPU Load:**\n- Report 1-minute, 5-minute, and 15-minute load averages\n- Flag if 5-minute load average exceeds 3.0 (Pi has 4 cores, sustained >75% is concerning)\n\n**Memory:**\n- Total RAM, used RAM, and percentage\n- Flag as WARNING if >80% used\n- Flag as CRITICAL if >90% used\n\n**Disk:**\n- Root filesystem usage percentage\n- Flag as WARNING if >80% full\n- Flag as CRITICAL if >90% full\n\n**Uptime:**\n- Report current uptime\n\n**Trend Analysis:**\nCompare against previous runs to identify:\n- Temperature trends (gradual increase may indicate dust buildup or cooling issues)\n- Memory leaks (steadily increasing RAM usage)\n- Disk space consumption rate\n- Any sudden changes in metrics\n\nProvide a summary status: ALL CLEAR, WARNINGS PRESENT, or CRITICAL CONDITIONS."
   }
 ];
 

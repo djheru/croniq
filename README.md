@@ -8,12 +8,14 @@ A scheduled data collection and monitoring platform powered by a four-stage Lang
 
 - **AI agent pipeline** — four-stage LangChain.js pipeline (Collector → Summarizer → Researcher → Editor) powered by AWS Bedrock
 - **5 data source types** — HTML scraping, JS-rendered pages (Playwright), REST APIs, RSS/Atom feeds, GraphQL
+- **Multi-source jobs** — combine multiple data sources in a single job; Collector processes all sources in parallel
 - **Natural language prompts** — tell the agent what to collect and how to analyze it; template variables via `{{key}}` syntax
 - **Cron scheduling** — any valid cron expression; preset buttons in the UI
 - **Change detection** — SHA-256 hashes each result; flags and optionally webhooks when data changes
 - **Per-stage tracking** — every pipeline stage is recorded with timing, model ID, output, and error diagnostics
 - **Run history** — stores all results and stage details in SQLite
 - **Webhook notifications** — fire any HTTP endpoint (Slack, Discord, n8n, etc.) when results change
+- **Pi system monitoring** — built-in endpoint for temperature, CPU, memory, and disk metrics with AI-powered health analysis
 
 ---
 
@@ -78,7 +80,7 @@ With the server running:
 npx tsx scripts/seed.ts
 ```
 
-Creates 12 jobs across all collector types: crypto prices, weather, news feeds (NPR, Guardian, WaPo), AWS/GitHub status monitors, HN front page, Anthropic blog, and more — each with tailored agent prompts.
+Creates 9 example jobs: multi-source news aggregation (Guardian, WaPo, NPR), crypto prices, weather monitoring (Gilbert AZ + Garden MI), Hacker News, AWS/GitHub status, Anthropic blog scraping, Croniq pipeline stats, and Pi system health — each with tailored agent prompts and multi-source collection where appropriate.
 
 ---
 
@@ -265,6 +267,52 @@ npm run db:import
 ```
 
 See `backups/README.md` for detailed workflow documentation.
+
+---
+
+## Pi System Health Monitoring
+
+Croniq includes built-in Pi system metrics monitoring via the `/api/system/metrics` endpoint.
+
+### Endpoint Response
+
+```json
+{
+  "temperature": {
+    "celsius": 52.3,
+    "fahrenheit": 126.14
+  },
+  "memory": {
+    "totalMB": 3906,
+    "usedMB": 1234,
+    "percentUsed": 31.59
+  },
+  "disk": {
+    "percentUsed": 45,
+    "raw": "45%"
+  },
+  "cpu": {
+    "load1min": 0.52,
+    "load5min": 0.68,
+    "load15min": 0.71
+  },
+  "uptime": "up 3 days, 14 hours, 22 minutes",
+  "timestamp": "2026-03-18T12:00:00.000Z"
+}
+```
+
+### Automated Monitoring Job
+
+The default seed includes a "Pi System Health" job that monitors the Pi every 10 minutes and flags:
+
+- **Temperature:** WARNING >70°C (158°F), CRITICAL >80°C (176°F)
+- **CPU Load:** WARNING if 5-min load >3.0 (>75% on 4-core Pi)
+- **Memory:** WARNING >80%, CRITICAL >90%
+- **Disk:** WARNING >80%, CRITICAL >90%
+
+The AI agent compares against previous runs to detect trends like memory leaks, temperature increases, or disk space consumption.
+
+**Note:** This endpoint only works on Linux systems with `/sys/class/thermal/thermal_zone0/temp` (Raspberry Pi). It will fail gracefully on other platforms.
 
 ---
 

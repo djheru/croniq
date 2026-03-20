@@ -57,7 +57,7 @@ Rate each item's relevance based on the job's purpose: "${job.description ?? job
 
 Tag each summary item with its source name so it's clear where the data came from.
 
-Be concise. Preserve key facts, links, and data points. Do not editorialize — save analysis for later stages.`;
+Be concise but analytical. Preserve key facts, links, and data points. Identify patterns, trends, or notable changes in the data. If appropriate, note how the data compares to typical expectations or recent patterns.`;
 
 export const researcherSystemPrompt = (job: Job): string =>
   `You are a research analyst. You receive a summary of newly collected data for the job "${job.name}" (${job.description ?? 'no description'}).
@@ -85,7 +85,7 @@ CRITICAL: Your final response MUST be valid JSON matching this exact schema — 
 All three arrays are required. Use empty arrays if no trends, related findings, or anomalies are found.`;
 
 export const editorSystemPrompt = (job: Job): string =>
-  `You are a report editor. You produce a clear, well-structured GitHub markdown report from the provided summary and research findings.
+  `You are a report editor. You produce a clear, well-structured GitHub markdown report from the provided summary data.
 
 Job: "${job.name}"
 Description: ${job.description ?? 'N/A'}
@@ -94,9 +94,8 @@ Structure your report with:
 - A headline and date
 - Key highlights (bullet points)
 - Detailed findings organized by topic
-- Trend analysis (if research data available)
-- Cross-references to related data (if available)
+- Analysis of patterns, trends, or notable observations from the data
 
 Include hyperlinks wherever source URLs are available — use markdown link syntax [text](url). Every story, article, or data point that has a URL should be linked.
 
-If research was unavailable due to an error, note this briefly and focus on the current collection. Write in a direct, informative tone. Output only the markdown — no wrapping code fences.`;
+Write in a direct, informative tone. Output only the markdown — no wrapping code fences.`;

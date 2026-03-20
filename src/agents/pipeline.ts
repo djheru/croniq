@@ -4,14 +4,12 @@ import type {
   RunStage,
   CollectorOutput,
   SummaryOutput,
-  ResearchOutput,
   PipelineResult,
   StageErrorPayload,
   StageErrorType,
 } from './types.js';
 import { createCollectorAgent } from './collector.js';
 import { createSummarizerAgent } from './summarizer.js';
-import { createResearcherAgent } from './researcher.js';
 import { createEditorAgent } from './editor.js';
 import { createRunStage } from '../db/queries.js';
 
@@ -90,7 +88,7 @@ const runStage = async <T>(
 };
 
 import { HumanMessage } from '@langchain/core/messages';
-import { CollectorOutputSchema, ResearchOutputSchema, SourceResultSchema, type SourceResult } from './types.js';
+import { CollectorOutputSchema, SourceResultSchema, type SourceResult } from './types.js';
 import type { ReactAgentLike } from './types.js';
 
 // Extract JSON from LLM output that may contain markdown, commentary, or code fences
@@ -116,7 +114,7 @@ interface AgentResult {
   tokenCount: number;
 }
 
-// Invoke a createReactAgent agent (collector, researcher) — returns final message content + token sum
+// Invoke a createReactAgent agent (collector) — returns final message content + token sum
 const invokeReactAgent = async (agent: ReactAgentLike, message: string): Promise<AgentResult> => {
   const result = await agent.invoke({
     messages: [new HumanMessage(message)],
@@ -248,36 +246,14 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
   );
   stages.push(summarizerResult.stage);
 
-  // Stage 3: Researcher (React agent with tools, then parse structured output)
-  const researcherAgent = createResearcherAgent(job);
-  const researcherMessage = `Analyze this summary for trends and cross-references. Current job ID: ${job.id}\n\n${JSON.stringify(summarizerResult.data, null, 2)}`;
-  const researcherResult = await runStage<ResearchOutput>(
-    'researcher',
-    runId,
-    async () => {
-      const { content, tokenCount } = await invokeReactAgent(researcherAgent, researcherMessage);
-      const json = extractJson(content);
-      return { data: ResearchOutputSchema.parse(JSON.parse(json)), tokenCount };
-    },
-    summarizerResult.data,
-    process.env.RESEARCHER_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-  );
-  stages.push(researcherResult.stage);
-
-  // Stage 4: Editor (direct model, returns markdown string)
+  // Stage 3: Editor (direct model, returns markdown string)
   const editorAgent = createEditorAgent(job);
-  const editorMessage = `Write a report from this data:
-
-## Summary
-${JSON.stringify(summarizerResult.data, null, 2)}
-
-## Research
-${JSON.stringify(researcherResult.data, null, 2)}`;
+  const editorMessage = `Write a polished report from this summary:\n\n${JSON.stringify(summarizerResult.data, null, 2)}`;
   const editorResult = await runStage<string>(
     'editor',
     runId,
     async () => editorAgent.invoke(editorMessage),
-    { summary: summarizerResult.data, research: researcherResult.data },
+    summarizerResult.data,
     process.env.EDITOR_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   );
   stages.push(editorResult.stage);

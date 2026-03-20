@@ -71,7 +71,11 @@ export async function runJob(job: Job, nextRunAt?: string): Promise<void> {
       durationMs,
       changed: false,
     });
-    setJobStatus(job.id, 'error');
+    // Only set error status for actual failures, not timeouts
+    // Timeouts are often transient and shouldn't stop the scheduler
+    if (!isTimeout) {
+      setJobStatus(job.id, 'error');
+    }
     console.error(`[runner] Job "${job.name}" pipeline ${isTimeout ? 'timeout' : 'error'}: ${error}`);
   }
 }

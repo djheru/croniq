@@ -711,7 +711,7 @@ export function JobDetail({
           <Card>
             <div
               style={{
-                padding: "10px 12px",
+                padding: "4px 4px",
                 borderBottom: "1px solid var(--border)",
                 fontSize: 15,
                 color: "var(--text-1)",

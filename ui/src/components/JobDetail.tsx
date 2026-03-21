@@ -711,7 +711,7 @@ export function JobDetail({
           <Card>
             <div
               style={{
-                padding: "4px 4px",
+                padding: "4px 12px",
                 borderBottom: "1px solid var(--border)",
                 fontSize: 15,
                 color: "var(--text-1)",
@@ -770,38 +770,54 @@ export function JobDetail({
                           selectedRun?.id === run.id
                             ? "var(--bg-3)"
                             : "transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
                       }}
                     >
-                      <Badge variant={outcomeVariant(run.outcome)}>
-                        {run.outcome}
-                      </Badge>
-                      {run.changed && <Badge variant="changed">changed</Badge>}
-                      <span
+                      <div
                         style={{
-                          flex: 1,
-                          fontSize: 13,
-                          color: "var(--text-1)",
-                          fontFamily: "var(--font-mono)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          marginBottom: 6,
                         }}
                       >
-                        {formatDistanceToNow(new Date(run.startedAt), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                      {run.durationMs && (
+                        <Badge variant={outcomeVariant(run.outcome)}>
+                          {run.outcome}
+                        </Badge>
+                        {run.changed && (
+                          <Badge variant="changed">changed</Badge>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
                         <span
                           style={{
-                            fontSize: 12,
-                            color: "var(--text-2)",
+                            flex: 1,
+                            fontSize: 11,
+                            color: "var(--text-1)",
                             fontFamily: "var(--font-mono)",
                           }}
                         >
-                          {run.durationMs}ms
+                          {formatDistanceToNow(new Date(run.startedAt), {
+                            addSuffix: true,
+                          })}
                         </span>
-                      )}
+                        {run.durationMs && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: "var(--text-2)",
+                              fontFamily: "var(--font-mono)",
+                            }}
+                          >
+                            {run.durationMs}ms
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

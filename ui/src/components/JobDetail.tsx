@@ -473,7 +473,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
               ) : runs.length === 0 ? (
                 <Empty message="No runs yet" />
               ) : (
-                <div style={{ maxHeight: 460, overflow: 'auto' }}>
+                <div>
                   {runs.map(run => (
                     <div key={run.id}
                       onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
@@ -506,7 +506,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
               {selectedRun ? `Run Detail — ${format(new Date(selectedRun.startedAt), 'MMM d, HH:mm:ss')}` : 'Select a run'}
             </div>
             {selectedRun ? (
-              <div style={{ maxHeight: 460, overflow: 'auto', padding: 18 }}>
+              <div style={{ padding: 18 }}>
                 {selectedRun.error ? (
                   <RunError error={selectedRun.error} />
                 ) : (

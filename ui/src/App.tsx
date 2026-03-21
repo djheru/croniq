@@ -322,10 +322,8 @@ function JobList({
   return (
     <>
       {/* Stats bar */}
-      <div
-        style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}
-      >
-        {/* {[
+      {/*<div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
+         {[
           { label: "Total Jobs", value: stats.total, color: "var(--text-0)" },
           { label: "Active", value: stats.active, color: "var(--success)" },
           { label: "Errors", value: stats.errors, color: "var(--danger)" },
@@ -363,12 +361,12 @@ function JobList({
               {s.label}
             </span>
           </Card>
-        ))} */}
+        ))} 
         <div style={{ flex: 1 }} />
         <Button variant="primary" onClick={() => navigate("/jobs/new")}>
           + New Job
         </Button>
-      </div>
+      </div>*/}
 
       {/* Filters */}
       <div
@@ -380,6 +378,13 @@ function JobList({
           flexWrap: "wrap",
         }}
       >
+        <Button
+          variant="primary"
+          onClick={() => navigate("/jobs/new")}
+          style={{ padding: "3px 20px 3px 14px", marginRight: "20px" }}
+        >
+          + New Job
+        </Button>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}

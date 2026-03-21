@@ -5,7 +5,7 @@ import { Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api, type Job } from "./api";
 import { JobDetail, StatusBadge } from "./components/JobDetail";
 import { JobForm } from "./components/JobForm";
-import { Badge, Button, Card, Empty, Modal, Spinner } from "./components/ui";
+import { Badge, Button, Card, Empty, Spinner } from "./components/ui";
 
 export default function App() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -37,11 +37,7 @@ export default function App() {
           <Route
             path="/"
             element={
-              <JobList
-                jobs={jobs}
-                loading={loading}
-                loadJobs={loadJobs}
-              />
+              <JobList jobs={jobs} loading={loading} loadJobs={loadJobs} />
             }
           />
           <Route
@@ -81,11 +77,29 @@ function JobFormRoute({ loadJobs }: { loadJobs: () => Promise<void> }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <button onClick={() => navigate("/")} style={{
-          background: 'none', border: 'none', color: 'var(--text-1)',
-          cursor: 'pointer', fontSize: 20, padding: '0 4px', minHeight: 44, minWidth: 44,
-        }}>←</button>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        <button
+          onClick={() => navigate("/")}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--text-1)",
+            cursor: "pointer",
+            fontSize: 20,
+            padding: "0 4px",
+            minHeight: 44,
+            minWidth: 44,
+          }}
+        >
+          ←
+        </button>
         <h2 style={{ fontSize: 20, fontWeight: 600 }}>New Job</h2>
       </div>
       <Card style={{ padding: 20 }}>
@@ -95,7 +109,13 @@ function JobFormRoute({ loadJobs }: { loadJobs: () => Promise<void> }) {
   );
 }
 
-function JobEditRoute({ jobs, loadJobs }: { jobs: Job[]; loadJobs: () => Promise<void> }) {
+function JobEditRoute({
+  jobs,
+  loadJobs,
+}: {
+  jobs: Job[];
+  loadJobs: () => Promise<void>;
+}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
@@ -105,7 +125,8 @@ function JobEditRoute({ jobs, loadJobs }: { jobs: Job[]; loadJobs: () => Promise
     if (found) {
       setJob(found);
     } else if (id) {
-      api.getJob(id)
+      api
+        .getJob(id)
         .then((res) => setJob(res.data))
         .catch(() => navigate("/"));
     }
@@ -128,15 +149,37 @@ function JobEditRoute({ jobs, loadJobs }: { jobs: Job[]; loadJobs: () => Promise
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <button onClick={() => navigate(`/jobs/${id}`)} style={{
-          background: 'none', border: 'none', color: 'var(--text-1)',
-          cursor: 'pointer', fontSize: 20, padding: '0 4px', minHeight: 44, minWidth: 44,
-        }}>←</button>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
+        <button
+          onClick={() => navigate(`/jobs/${id}`)}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--text-1)",
+            cursor: "pointer",
+            fontSize: 20,
+            padding: "0 4px",
+            minHeight: 44,
+            minWidth: 44,
+          }}
+        >
+          ←
+        </button>
         <h2 style={{ fontSize: 20, fontWeight: 600 }}>Edit Job</h2>
       </div>
       <Card style={{ padding: 20 }}>
-        <JobForm initial={job} onSubmit={updateJob} onCancel={() => navigate(`/jobs/${id}`)} />
+        <JobForm
+          initial={job}
+          onSubmit={updateJob}
+          onCancel={() => navigate(`/jobs/${id}`)}
+        />
       </Card>
     </div>
   );
@@ -254,11 +297,16 @@ function JobList({
     await loadJobs();
   };
 
-  const types = [...new Set(jobs.flatMap((j) => j.sources.map(s => s.config.type)))];
+  const types = [
+    ...new Set(jobs.flatMap((j) => j.sources.map((s) => s.config.type))),
+  ];
 
   const filtered = jobs.filter((j) => {
     if (filterStatus !== "all" && j.status !== filterStatus) return false;
-    if (filterType !== "all" && !j.sources.some(s => s.config.type === filterType))
+    if (
+      filterType !== "all" &&
+      !j.sources.some((s) => s.config.type === filterType)
+    )
       return false;
     if (search && !j.name.toLowerCase().includes(search.toLowerCase()))
       return false;
@@ -274,8 +322,10 @@ function JobList({
   return (
     <>
       {/* Stats bar */}
-      <div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
-        {[
+      <div
+        style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}
+      >
+        {/* {[
           { label: "Total Jobs", value: stats.total, color: "var(--text-0)" },
           { label: "Active", value: stats.active, color: "var(--success)" },
           { label: "Errors", value: stats.errors, color: "var(--danger)" },
@@ -313,7 +363,7 @@ function JobList({
               {s.label}
             </span>
           </Card>
-        ))}
+        ))} */}
         <div style={{ flex: 1 }} />
         <Button variant="primary" onClick={() => navigate("/jobs/new")}>
           + New Job
@@ -401,7 +451,8 @@ function JobList({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(min(350px, 100%), 1fr))",
+            gridTemplateColumns:
+              "repeat(auto-fill, minmax(min(350px, 100%), 1fr))",
             gap: 14,
             gridAutoRows: "1fr",
           }}
@@ -565,15 +616,29 @@ function JobCard({
         </div>
 
         {/* Content area - grows to fill available space */}
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           {/* Tags */}
           <div
-            style={{ display: "flex", gap: 4, marginBottom: 8, flexWrap: "wrap" }}
+            style={{
+              display: "flex",
+              gap: 4,
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
           >
             {job.sources.length > 1 ? (
               <Badge variant="muted">{job.sources.length} sources</Badge>
             ) : (
-              <Badge variant="muted">{job.sources[0]?.config.type ?? 'unknown'}</Badge>
+              <Badge variant="muted">
+                {job.sources[0]?.config.type ?? "unknown"}
+              </Badge>
             )}
             {job.tags.slice(0, 3).map((t) => (
               <Badge key={t} variant="muted">
@@ -597,25 +662,27 @@ function JobCard({
               flex: "0 0 auto",
             }}
           >
-            {job.sources.map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  lineHeight: "1.2",
-                }}
-                title={s.config.url as string}
-              >
-                {s.name && `${s.name}: `}
-                {(s.config.url as string)
-                  ?.replace(/^https?:\/\//, "")
-                  .slice(0, 35)}
-              </div>
-            )).slice(0, 2)}
+            {job.sources
+              .map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    lineHeight: "1.2",
+                  }}
+                  title={s.config.url as string}
+                >
+                  {s.name && `${s.name}: `}
+                  {(s.config.url as string)
+                    ?.replace(/^https?:\/\//, "")
+                    .slice(0, 35)}
+                </div>
+              ))
+              .slice(0, 2)}
             {job.sources.length > 2 && (
-              <div style={{ fontStyle: 'italic', opacity: 0.7 }}>
+              <div style={{ fontStyle: "italic", opacity: 0.7 }}>
                 +{job.sources.length - 2} more
               </div>
             )}

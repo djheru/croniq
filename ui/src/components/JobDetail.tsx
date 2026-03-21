@@ -20,9 +20,10 @@ function StageBadge({ status }: { status: 'success' | 'error' | 'skipped' }) {
 
   return (
     <span style={{
-      fontSize: 10, fontFamily: 'var(--font-mono)',
-      padding: '1px 6px', borderRadius: 3,
+      fontSize: 12, fontFamily: 'var(--font-mono)',
+      padding: '3px 8px', borderRadius: 4,
       color: config.color, background: config.bg,
+      fontWeight: 500,
     }}>
       {config.label}
     </span>
@@ -36,11 +37,11 @@ function StagePanel({ stage, children }: {
   const [open, setOpen] = useState(false);
 
   return (
-    <Card style={{ marginBottom: 8 }}>
+    <Card style={{ marginBottom: 10 }}>
       <div
         onClick={() => setOpen(!open)}
         style={{
-          padding: '10px 14px',
+          padding: '12px 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -48,26 +49,27 @@ function StagePanel({ stage, children }: {
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 14, fontFamily: 'var(--font-mono)' }}>
             {open ? '▾' : '▸'}
           </span>
           <span style={{
-            fontSize: 12,
+            fontSize: 14,
             fontFamily: 'var(--font-mono)',
             textTransform: 'capitalize',
+            fontWeight: 500,
           }}>
             {stage.stage}
           </span>
           <StageBadge status={stage.status} />
         </div>
         <span style={{
-          fontSize: 10,
+          fontSize: 12,
           color: 'var(--text-2)',
           fontFamily: 'var(--font-mono)',
         }}>
           {stage.durationMs ? `${(stage.durationMs / 1000).toFixed(1)}s` : ''}
-          {stage.tokenCount ? ` · ${stage.tokenCount} tokens` : ''}
+          {stage.tokenCount ? ` · ${stage.tokenCount.toLocaleString()} tokens` : ''}
         </span>
       </div>
       {open && (
@@ -122,7 +124,7 @@ function CollectorPanel({ data }: { data: unknown }) {
   return (
     <div>
       <pre style={{
-        fontSize: 11, fontFamily: 'var(--font-mono)',
+        fontSize: 13, fontFamily: 'var(--font-mono)',
         whiteSpace: 'pre-wrap', wordBreak: 'break-word',
         maxHeight: 300, overflow: 'auto', marginBottom: 10,
       }}>
@@ -134,12 +136,12 @@ function CollectorPanel({ data }: { data: unknown }) {
           onChange={(e) => setExpr(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') evalExpression(expr); }}
           placeholder="data.items[0].title"
-          style={{ flex: 1, fontSize: 11, fontFamily: 'var(--font-mono)' }}
+          style={{ flex: 1, fontSize: 13, fontFamily: 'var(--font-mono)', padding: '8px 12px' }}
         />
       </div>
       {replOutput && (
         <pre style={{
-          fontSize: 11, fontFamily: 'var(--font-mono)',
+          fontSize: 13, fontFamily: 'var(--font-mono)',
           color: 'var(--accent)', marginTop: 6,
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
         }}>
@@ -161,24 +163,24 @@ function SummaryView({ data }: { data: unknown }) {
   return (
     <div>
       {summary.overallSummary && (
-        <p style={{ fontSize: 12, color: 'var(--text-1)', marginBottom: 12 }}>
+        <p style={{ fontSize: 14, color: 'var(--text-1)', marginBottom: 12 }}>
           {summary.overallSummary}
         </p>
       )}
       {summary.items?.map((item, i) => (
         <div key={i} style={{
-          padding: '8px 0',
+          padding: '10px 0',
           borderBottom: i < (summary.items?.length ?? 0) - 1 ? '1px solid var(--border)' : undefined,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <Badge variant={item.relevance === 'high' ? 'accent' : 'muted'}>
               {item.relevance}
             </Badge>
-            <span style={{ fontSize: 12, fontWeight: 500 }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>
               {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.headline}</a> : item.headline}
             </span>
           </div>
-          <p style={{ fontSize: 11, color: 'var(--text-2)', margin: 0 }}>{item.summary}</p>
+          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{item.summary}</p>
         </div>
       ))}
     </div>
@@ -196,15 +198,15 @@ function ResearchView({ data }: { data: unknown }) {
   return (
     <div>
       {research.trends && research.trends.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 6 }}>Trends</div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 8, fontWeight: 500 }}>Trends</div>
           {research.trends.map((t, i) => (
-            <div key={i} style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div key={i} style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <Badge variant={t.confidence === 'high' ? 'accent' : 'muted'}>{t.confidence}</Badge>
-                <span style={{ fontSize: 12 }}>{t.description}</span>
+                <span style={{ fontSize: 14 }}>{t.description}</span>
               </div>
-              <ul style={{ fontSize: 11, color: 'var(--text-2)', margin: '4px 0 0 20px', padding: 0 }}>
+              <ul style={{ fontSize: 13, color: 'var(--text-2)', margin: '6px 0 0 24px', padding: 0 }}>
                 {t.supportingEvidence.map((e, j) => <li key={j}>{e}</li>)}
               </ul>
             </div>
@@ -212,10 +214,10 @@ function ResearchView({ data }: { data: unknown }) {
         </div>
       )}
       {research.relatedFindings && research.relatedFindings.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 6 }}>Related</div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 8, fontWeight: 500 }}>Related</div>
           {research.relatedFindings.map((f, i) => (
-            <div key={i} style={{ marginBottom: 6, fontSize: 12 }}>
+            <div key={i} style={{ marginBottom: 8, fontSize: 14 }}>
               <strong>{f.fromJob}</strong>: {f.connection}
             </div>
           ))}
@@ -223,11 +225,11 @@ function ResearchView({ data }: { data: unknown }) {
       )}
       {research.anomalies && research.anomalies.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 6 }}>Anomalies</div>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', textTransform: 'uppercase', marginBottom: 8, fontWeight: 500 }}>Anomalies</div>
           {research.anomalies.map((a, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
               <Badge variant={a.severity === 'high' ? 'danger' : 'muted'}>{a.severity}</Badge>
-              <span style={{ fontSize: 12 }}>{a.description}</span>
+              <span style={{ fontSize: 14 }}>{a.description}</span>
             </div>
           ))}
         </div>
@@ -248,7 +250,8 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [stages, setStages] = useState<RunStage[]>([]);
-  const [runsExpanded, setRunsExpanded] = useState(false);
+  const [runsExpanded, setRunsExpanded] = useState(true);
+  const [runsListExpanded, setRunsListExpanded] = useState(true);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [scheduleInput, setScheduleInput] = useState(job.schedule);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -339,11 +342,11 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button onClick={onBack} style={{
           background: 'none', border: 'none', color: 'var(--text-1)',
-          cursor: 'pointer', fontSize: 18, padding: '0 4px',
+          cursor: 'pointer', fontSize: 22, padding: '0 4px', minHeight: 44, minWidth: 44,
         }}>←</button>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600 }}>{job.name}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 600 }}>{job.name}</h2>
             <StatusBadge status={job.status} />
             {job.sources.length > 1 ? (
               <Badge variant="muted">{job.sources.length} sources</Badge>
@@ -353,7 +356,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
             {job.tags.map(t => <Badge key={t} variant="muted">{t}</Badge>)}
           </div>
           {job.description && (
-            <p style={{ color: 'var(--text-1)', fontSize: 13, marginTop: 2 }}>{job.description}</p>
+            <p style={{ color: 'var(--text-1)', fontSize: 14, marginTop: 4 }}>{job.description}</p>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -369,23 +372,23 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
 
       {/* Stats row */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: 24 }}>
           {[
             { label: 'Total Runs', value: stats.total },
             { label: 'Success Rate', value: `${successRate}%` },
             { label: 'Avg Duration', value: `${stats.avgDurationMs}ms` },
           ].map(s => (
-            <Card key={s.label} style={{ padding: '12px 16px' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{s.value}</div>
+            <Card key={s.label} style={{ padding: '14px 18px' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, fontWeight: 500 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{s.value}</div>
             </Card>
           ))}
           <Card
-            style={{ padding: '12px 16px', cursor: editingSchedule ? 'default' : 'pointer' }}
+            style={{ padding: '14px 18px', cursor: editingSchedule ? 'default' : 'pointer' }}
             onClick={() => { if (!editingSchedule) { setScheduleInput(job.schedule); setEditingSchedule(true); } }}
           >
-            <div style={{ fontSize: 11, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-              Schedule {!editingSchedule && <span style={{ fontSize: 9, opacity: 0.5 }}>✎</span>}
+            <div style={{ fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, fontWeight: 500 }}>
+              Schedule {!editingSchedule && <span style={{ fontSize: 10, opacity: 0.6 }}>✎</span>}
             </div>
             {editingSchedule ? (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -398,22 +401,22 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
                     if (e.key === 'Escape') setEditingSchedule(false);
                   }}
                   style={{
-                    flex: 1, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-mono)',
+                    flex: 1, fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-mono)',
                     background: 'var(--bg-0)', border: '1px solid var(--accent)',
-                    borderRadius: 'var(--radius)', padding: '4px 8px', color: 'var(--text-0)',
+                    borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text-0)',
                     width: '100%',
                   }}
                   disabled={savingSchedule}
                 />
                 <button onClick={saveSchedule} disabled={savingSchedule} style={{
-                  background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: 16, padding: 0,
+                  background: 'none', border: 'none', color: 'var(--success)', cursor: 'pointer', fontSize: 18, padding: 4, minHeight: 36, minWidth: 36,
                 }}>✓</button>
                 <button onClick={() => setEditingSchedule(false)} style={{
-                  background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: 16, padding: 0,
+                  background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: 18, padding: 4, minHeight: 36, minWidth: 36,
                 }}>✕</button>
               </div>
             ) : (
-              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{job.schedule}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{job.schedule}</div>
             )}
           </Card>
         </div>
@@ -424,53 +427,86 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
         title="Run History"
         expanded={runsExpanded}
         onToggle={() => setRunsExpanded(!runsExpanded)}
-        collapsible={true}
+        collapsible={false}
         count={runs.length}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: runsListExpanded ? '1fr 3fr' : 'auto 1fr', gap: 20 }}>
           {/* Runs list */}
           <Card>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-              Runs
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--border)',
+              fontSize: 15,
+              color: 'var(--text-1)',
+              fontFamily: 'var(--font-mono)',
+              textTransform: 'uppercase',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+            }}>
+              {runsListExpanded && <span>Runs</span>}
+              <button
+                onClick={() => setRunsListExpanded(!runsListExpanded)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-1)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  padding: 6,
+                  minHeight: 40,
+                  minWidth: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title={runsListExpanded ? 'Collapse runs list' : 'Expand runs list'}
+              >
+                {runsListExpanded ? '◀' : '▶'}
+              </button>
             </div>
-            {loading ? (
-              <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
-            ) : runs.length === 0 ? (
-              <Empty message="No runs yet" />
-            ) : (
-              <div style={{ maxHeight: 460, overflow: 'auto' }}>
-                {runs.map(run => (
-                  <div key={run.id}
-                    onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
-                    style={{
-                      padding: '10px 16px', cursor: 'pointer',
-                      borderBottom: '1px solid var(--border)',
-                      background: selectedRun?.id === run.id ? 'var(--bg-3)' : 'transparent',
-                      display: 'flex', alignItems: 'center', gap: 10,
-                    }}>
-                    <Badge variant={outcomeVariant(run.outcome)}>{run.outcome}</Badge>
-                    {run.changed && <Badge variant="changed">changed</Badge>}
-                    <span style={{ flex: 1, fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>
-                      {formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}
-                    </span>
-                    {run.durationMs && (
-                      <span style={{ fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
-                        {run.durationMs}ms
+            {runsListExpanded && (
+              loading ? (
+                <div style={{ padding: 20, textAlign: 'center' }}><Spinner /></div>
+              ) : runs.length === 0 ? (
+                <Empty message="No runs yet" />
+              ) : (
+                <div style={{ maxHeight: 460, overflow: 'auto' }}>
+                  {runs.map(run => (
+                    <div key={run.id}
+                      onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
+                      style={{
+                        padding: '12px 16px', cursor: 'pointer',
+                        borderBottom: '1px solid var(--border)',
+                        background: selectedRun?.id === run.id ? 'var(--bg-3)' : 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}>
+                      <Badge variant={outcomeVariant(run.outcome)}>{run.outcome}</Badge>
+                      {run.changed && <Badge variant="changed">changed</Badge>}
+                      <span style={{ flex: 1, fontSize: 13, color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>
+                        {formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}
                       </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                      {run.durationMs && (
+                        <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
+                          {run.durationMs}ms
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </Card>
 
           {/* Run detail */}
           <Card>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontSize: 15, color: 'var(--text-1)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 500 }}>
               {selectedRun ? `Run Detail — ${format(new Date(selectedRun.startedAt), 'MMM d, HH:mm:ss')}` : 'Select a run'}
             </div>
             {selectedRun ? (
-              <div style={{ maxHeight: 460, overflow: 'auto', padding: 16 }}>
+              <div style={{ maxHeight: 460, overflow: 'auto', padding: 18 }}>
                 {selectedRun.error ? (
                   <RunError error={selectedRun.error} />
                 ) : (
@@ -563,28 +599,28 @@ function RunError({ error }: { error: string }) {
   return (
     <div>
       <div style={{
-        color: 'var(--danger)', fontSize: 13, fontWeight: 500, marginBottom: 8,
+        color: 'var(--danger)', fontSize: 16, fontWeight: 500, marginBottom: 10,
         fontFamily: 'var(--font-mono)',
       }}>
         {mainError}
       </div>
       {diagLines.length > 0 && (
         <div style={{
-          background: 'var(--bg-3)', borderRadius: 'var(--radius)', padding: '10px 14px',
-          marginBottom: 8, borderLeft: '3px solid var(--warning)',
+          background: 'var(--bg-3)', borderRadius: 'var(--radius)', padding: '12px 16px',
+          marginBottom: 10, borderLeft: '3px solid var(--warning)',
         }}>
-          <div style={{ fontSize: 10, color: 'var(--warning)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: 12, color: 'var(--warning)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em', fontWeight: 500 }}>
             Diagnostics
           </div>
           {diagLines.map((line, i) => (
-            <div key={i} style={{ fontSize: 12, color: 'var(--text-0)', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
+            <div key={i} style={{ fontSize: 14, color: 'var(--text-0)', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
               {line.replace('[diag] ', '')}
             </div>
           ))}
         </div>
       )}
       {otherLines.length > 0 && (
-        <pre style={{ fontSize: 11, color: 'var(--text-1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-mono)' }}>
+        <pre style={{ fontSize: 13, color: 'var(--text-1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'var(--font-mono)' }}>
           {otherLines.join('\n')}
         </pre>
       )}

@@ -181,12 +181,13 @@ router.get('/jobs/:id/runs/:runId/stages', (req, res) => {
 // ─── Stats ───────────────────────────────────────────────────────────────────
 
 // Blended cost per 1M tokens (assumes ~70% input, 30% output)
+// AWS Bedrock pricing: Haiku ($1/$5), Sonnet 4.6 ($3/$15), Opus 4.6 ($5/$25)
 const MODEL_COST_PER_MTOK: Record<string, number> = {
-  'claude-haiku-4-5-20251001': 2.20,
-  'claude-sonnet-4-6': 6.60,
-  'claude-opus-4-6': 33.00,
+  'us.anthropic.claude-haiku-4-5-20251001-v1:0': 2.20,  // 0.70*1.00 + 0.30*5.00
+  'us.anthropic.claude-sonnet-4-6-v1:0': 6.60,          // 0.70*3.00 + 0.30*15.00
+  'us.anthropic.claude-opus-4-6-v1:0': 11.00,           // 0.70*5.00 + 0.30*25.00
 };
-const DEFAULT_COST_PER_MTOK = 6.60;
+const DEFAULT_COST_PER_MTOK = 2.20;  // Default to Haiku pricing
 
 const PERIOD_OFFSETS: Record<string, number> = {
   '24h': 24 * 60 * 60 * 1000,

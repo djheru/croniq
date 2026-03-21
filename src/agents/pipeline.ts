@@ -3,13 +3,11 @@ import type {
   PipelineStage,
   RunStage,
   CollectorOutput,
-  SummaryOutput,
   PipelineResult,
   StageErrorPayload,
   StageErrorType,
 } from './types.js';
 import { createCollectorAgent } from './collector.js';
-import { createSummarizerAgent } from './summarizer.js';
 import { createEditorAgent } from './editor.js';
 import { createRunStage } from '../db/queries.js';
 
@@ -234,26 +232,14 @@ export const runPipeline = async (job: Job, runId: string): Promise<PipelineResu
   );
   stages.push(collectorResult.stage);
 
-  // Stage 2: Summarizer (direct model with withStructuredOutput)
-  const summarizerAgent = createSummarizerAgent(job);
-  const summarizerMessage = `Summarize this collected data:\n\n${JSON.stringify(collectorResult.data, null, 2)}`;
-  const summarizerResult = await runStage<SummaryOutput>(
-    'summarizer',
-    runId,
-    async () => summarizerAgent.invoke(summarizerMessage),
-    collectorResult.data,
-    process.env.SUMMARIZER_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-  );
-  stages.push(summarizerResult.stage);
-
-  // Stage 3: Editor (direct model, returns markdown string)
+  // Stage 2: Editor (direct model, returns markdown string)
   const editorAgent = createEditorAgent(job);
-  const editorMessage = `Write a polished report from this summary:\n\n${JSON.stringify(summarizerResult.data, null, 2)}`;
+  const editorMessage = `Write a report from this collected data:\n\n${JSON.stringify(collectorResult.data, null, 2)}`;
   const editorResult = await runStage<string>(
     'editor',
     runId,
     async () => editorAgent.invoke(editorMessage),
-    summarizerResult.data,
+    collectorResult.data,
     process.env.EDITOR_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   );
   stages.push(editorResult.stage);

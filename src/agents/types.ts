@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // --- Pipeline stage metadata ---
 
-export type PipelineStage = 'collector' | 'summarizer' | 'researcher' | 'editor';
+export type PipelineStage = 'collector' | 'editor';
 export type StageStatus = 'success' | 'error' | 'skipped';
 export type StageErrorType = 'timeout' | 'llm_error' | 'validation_error' | 'tool_error';
 
@@ -50,48 +50,6 @@ export const CollectorOutputSchema = z.object({
 });
 
 export type CollectorOutput = z.infer<typeof CollectorOutputSchema>;
-
-// --- Summarizer output ---
-
-export const SummaryItemSchema = z.object({
-  headline: z.string(),
-  summary: z.string().describe('1-2 sentence summary'),
-  url: z.string().optional(),
-  source: z.string().optional().describe('Source name this item came from'),
-  relevance: z.enum(['high', 'medium', 'low']),
-  metadata: z.record(z.unknown()).optional(),
-});
-
-export const SummaryOutputSchema = z.object({
-  title: z.string().describe('Brief title for this collection'),
-  sources: z.array(z.string()).describe('List of source names/URLs that were collected'),
-  collectedAt: z.string(),
-  items: z.array(SummaryItemSchema),
-  overallSummary: z.string().describe('2-3 sentence overview across all sources'),
-});
-
-export type SummaryOutput = z.infer<typeof SummaryOutputSchema>;
-
-// --- Researcher output ---
-
-export const ResearchOutputSchema = z.object({
-  trends: z.array(z.object({
-    description: z.string(),
-    confidence: z.enum(['high', 'medium', 'low']),
-    supportingEvidence: z.array(z.string()),
-  })),
-  relatedFindings: z.array(z.object({
-    fromJob: z.string().describe('Job name'),
-    connection: z.string().describe('How this relates'),
-    items: z.array(z.string()).describe('Key relevant items'),
-  })),
-  anomalies: z.array(z.object({
-    description: z.string(),
-    severity: z.enum(['high', 'medium', 'low']),
-  })),
-});
-
-export type ResearchOutput = z.infer<typeof ResearchOutputSchema>;
 
 // --- Pipeline result ---
 

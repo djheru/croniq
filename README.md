@@ -1,12 +1,12 @@
 # Croniq
 
-A scheduled data collection and monitoring platform powered by a three-stage LangChain.js agent pipeline. Runs on a Raspberry Pi 4 (or any always-on machine). Define jobs with natural language prompts, and AI agents collect, summarize, and produce polished reports on a cron schedule.
+A scheduled data collection and monitoring platform powered by a two-stage LangChain.js agent pipeline. Runs on a Raspberry Pi 4 (or any always-on machine). Define jobs with natural language prompts, and AI agents collect data and produce polished reports on a cron schedule.
 
 ---
 
 ## Features
 
-- **AI agent pipeline** — three-stage LangChain.js pipeline (Collector → Summarizer → Editor) powered by AWS Bedrock
+- **AI agent pipeline** — two-stage LangChain.js pipeline (Collector → Editor) powered by AWS Bedrock
 - **5 data source types** — HTML scraping, JS-rendered pages (Playwright), REST APIs, RSS/Atom feeds, GraphQL
 - **Multi-source jobs** — combine multiple data sources in a single job; Collector processes all sources in parallel
 - **Natural language prompts** — tell the agent what to collect and how to analyze it; template variables via `{{key}}` syntax
@@ -21,13 +21,12 @@ A scheduled data collection and monitoring platform powered by a three-stage Lan
 
 ## Agent Pipeline
 
-Each job run executes three sequential AI stages:
+Each job run executes two sequential AI stages:
 
 | Stage          | Model  | Purpose                                                                                         |
 | -------------- | ------ | ----------------------------------------------------------------------------------------------- |
 | **Collector**  | Haiku  | Gathers raw data using tools (html_scrape, browser_scrape, api_fetch, rss_fetch, graphql_fetch) |
-| **Summarizer** | Haiku  | Produces structured summary with key findings, patterns, and trends from collected data         |
-| **Editor**     | Haiku  | Writes a polished markdown report from the summary                                              |
+| **Editor**     | Haiku  | Writes a polished markdown report with analysis, patterns, and insights from the collected data |
 
 If a stage fails, its error payload wraps the previous stage's output so downstream stages can still attempt partial processing.
 
@@ -38,7 +37,6 @@ Each stage reads its model ID from an environment variable with a sensible defau
 | Variable              | Default                                       |
 | --------------------- | --------------------------------------------- |
 | `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `SUMMARIZER_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
 | `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 ---
@@ -322,7 +320,6 @@ The AI agent compares against previous runs to detect trends like memory leaks, 
 | `DATA_DIR`            | `./data`                                      | SQLite database directory |
 | `AWS_REGION`          | `us-east-1`                                   | AWS region for Bedrock    |
 | `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Collector stage model     |
-| `SUMMARIZER_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Summarizer stage model    |
 | `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Editor stage model        |
 
 AWS Bedrock credentials are required. Configure via standard AWS credential chain (`~/.aws/credentials`, environment variables, or IAM role). See the IAM Roles Anywhere section below for keyless auth on the Pi.
@@ -331,7 +328,7 @@ AWS Bedrock credentials are required. Configure via standard AWS credential chai
 
 ## AWS Bedrock Quotas & Monitoring
 
-The pipeline uses 4 Bedrock invocations per job run (Haiku + Sonnet + Sonnet + Opus). With many active jobs, you can hit throttling limits — especially on Opus.
+The pipeline uses 2 Bedrock invocations per job run (both stages use Haiku for cost efficiency). With many active jobs, you can hit throttling limits.
 
 ```bash
 # Check which Claude models you have access to
@@ -565,17 +562,16 @@ ssh kali "chmod 600 ~/.aws/pi.key && pm2 restart croniq"
 
 ## Project Structure
 
-```
+```text
 croniq/
 ├── src/
 │   ├── server.ts              # Express entry point
 │   ├── types/index.ts         # Shared TypeScript types
 │   ├── db/                    # SQLite schema + queries (jobs, runs, run_stages)
 │   ├── agents/
-│   │   ├── pipeline.ts        # Pipeline orchestrator (3 stages)
+│   │   ├── pipeline.ts        # Pipeline orchestrator (2 stages)
 │   │   ├── collector.ts       # Stage 1: data collection agent
-│   │   ├── summarizer.ts      # Stage 2: structured summary agent
-│   │   ├── editor.ts          # Stage 3: report writing agent
+│   │   ├── editor.ts          # Stage 2: report writing agent
 │   │   ├── prompts.ts         # System prompt factories
 │   │   ├── types.ts           # Pipeline types + Zod schemas
 │   │   └── tools/             # LangChain tools (scraping, API, RSS, GraphQL)

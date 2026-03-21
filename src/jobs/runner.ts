@@ -38,8 +38,8 @@ export async function runJob(job: Job, nextRunAt?: string): Promise<void> {
       return;
     }
 
-    // Use report for change detection (or summary if editor failed)
-    const resultForHash = report ?? JSON.stringify(stages.find((s) => s.stage === 'summarizer')?.output);
+    // Use report for change detection (or collector data if editor failed)
+    const resultForHash = report ?? JSON.stringify(stages.find((s) => s.stage === 'collector')?.output);
     const newHash = hashResult(resultForHash);
     const changed = !previousRun?.resultHash || previousRun.resultHash !== newHash;
 

@@ -17,7 +17,7 @@ export function Badge({ variant, children }: { variant: BadgeVariant; children: 
   return (
     <span style={{
       background: c.bg, color: c.color,
-      padding: '2px 8px', borderRadius: 4, fontSize: 11,
+      padding: '4px 10px', borderRadius: 5, fontSize: 13,
       fontFamily: 'var(--font-mono)', fontWeight: 500, whiteSpace: 'nowrap',
     }}>
       {children}
@@ -43,8 +43,9 @@ export function Button({ variant = 'ghost', size = 'md', style, children, ...pro
     cursor: 'pointer',
     transition: 'all 0.15s',
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: size === 'sm' ? '4px 10px' : '7px 14px',
-    fontSize: size === 'sm' ? 12 : 13,
+    padding: size === 'sm' ? '8px 14px' : '10px 18px',
+    fontSize: size === 'sm' ? 14 : 15,
+    minHeight: size === 'sm' ? 38 : 44,
   };
   const variants: Record<ButtonVariant, React.CSSProperties> = {
     primary: { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' },

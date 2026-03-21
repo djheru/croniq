@@ -10,7 +10,6 @@ import { Badge, Button, Card, Empty, Modal, Spinner } from "./components/ui";
 export default function App() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editJob, setEditJob] = useState<Job | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -30,13 +29,6 @@ export default function App() {
     return () => clearInterval(id);
   }, [loadJobs]);
 
-  async function updateJob(data: object) {
-    if (!editJob) return;
-    await api.updateJob(editJob.id, data);
-    await loadJobs();
-    setEditJob(null);
-  }
-
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-0)" }}>
       <Header />
@@ -49,11 +41,12 @@ export default function App() {
                 jobs={jobs}
                 loading={loading}
                 loadJobs={loadJobs}
-                editJob={editJob}
-                setEditJob={setEditJob}
-                updateJob={updateJob}
               />
             }
+          />
+          <Route
+            path="/jobs/new"
+            element={<JobFormRoute loadJobs={loadJobs} />}
           />
           <Route
             path="/jobs/:id"
@@ -61,12 +54,13 @@ export default function App() {
               <JobDetailRoute
                 jobs={jobs}
                 loading={loading}
-                editJob={editJob}
-                setEditJob={setEditJob}
-                updateJob={updateJob}
                 loadJobs={loadJobs}
               />
             }
+          />
+          <Route
+            path="/jobs/:id/edit"
+            element={<JobEditRoute jobs={jobs} loadJobs={loadJobs} />}
           />
         </Routes>
       </div>
@@ -76,19 +70,85 @@ export default function App() {
   );
 }
 
+function JobFormRoute({ loadJobs }: { loadJobs: () => Promise<void> }) {
+  const navigate = useNavigate();
+
+  async function createJob(data: object) {
+    await api.createJob(data);
+    await loadJobs();
+    navigate("/");
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button onClick={() => navigate("/")} style={{
+          background: 'none', border: 'none', color: 'var(--text-1)',
+          cursor: 'pointer', fontSize: 20, padding: '0 4px', minHeight: 44, minWidth: 44,
+        }}>←</button>
+        <h2 style={{ fontSize: 20, fontWeight: 600 }}>New Job</h2>
+      </div>
+      <Card style={{ padding: 20 }}>
+        <JobForm onSubmit={createJob} onCancel={() => navigate("/")} />
+      </Card>
+    </div>
+  );
+}
+
+function JobEditRoute({ jobs, loadJobs }: { jobs: Job[]; loadJobs: () => Promise<void> }) {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [job, setJob] = useState<Job | null>(null);
+
+  useEffect(() => {
+    const found = jobs.find((j) => j.id === id);
+    if (found) {
+      setJob(found);
+    } else if (id) {
+      api.getJob(id)
+        .then((res) => setJob(res.data))
+        .catch(() => navigate("/"));
+    }
+  }, [id, jobs, navigate]);
+
+  async function updateJob(data: object) {
+    if (!id) return;
+    await api.updateJob(id, data);
+    await loadJobs();
+    navigate(`/jobs/${id}`);
+  }
+
+  if (!job) {
+    return (
+      <div style={{ textAlign: "center", padding: 60 }}>
+        <Spinner />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button onClick={() => navigate(`/jobs/${id}`)} style={{
+          background: 'none', border: 'none', color: 'var(--text-1)',
+          cursor: 'pointer', fontSize: 20, padding: '0 4px', minHeight: 44, minWidth: 44,
+        }}>←</button>
+        <h2 style={{ fontSize: 20, fontWeight: 600 }}>Edit Job</h2>
+      </div>
+      <Card style={{ padding: 20 }}>
+        <JobForm initial={job} onSubmit={updateJob} onCancel={() => navigate(`/jobs/${id}`)} />
+      </Card>
+    </div>
+  );
+}
+
 function JobDetailRoute({
   jobs,
   loading,
-  editJob,
-  setEditJob,
-  updateJob,
   loadJobs,
 }: {
   jobs: Job[];
   loading: boolean;
-  editJob: Job | null;
-  setEditJob: (j: Job | null) => void;
-  updateJob: (data: object) => Promise<void>;
   loadJobs: () => Promise<void>;
 }) {
   const { id } = useParams<{ id: string }>();
@@ -121,23 +181,12 @@ function JobDetailRoute({
   }
 
   return (
-    <>
-      <JobDetail
-        job={job}
-        onEdit={() => setEditJob(job)}
-        onBack={() => navigate("/")}
-        onJobUpdated={loadJobs}
-      />
-      {editJob && (
-        <Modal title="Edit Job" onClose={() => setEditJob(null)}>
-          <JobForm
-            initial={editJob}
-            onSubmit={updateJob}
-            onCancel={() => setEditJob(null)}
-          />
-        </Modal>
-      )}
-    </>
+    <JobDetail
+      job={job}
+      onEdit={() => navigate(`/jobs/${id}/edit`)}
+      onBack={() => navigate("/")}
+      onJobUpdated={loadJobs}
+    />
   );
 }
 
@@ -145,19 +194,12 @@ function JobList({
   jobs,
   loading,
   loadJobs,
-  editJob,
-  setEditJob,
-  updateJob,
 }: {
   jobs: Job[];
   loading: boolean;
   loadJobs: () => Promise<void>;
-  editJob: Job | null;
-  setEditJob: (j: Job | null) => void;
-  updateJob: (data: object) => Promise<void>;
 }) {
   const navigate = useNavigate();
-  const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -169,12 +211,6 @@ function JobList({
   const isFiltered =
     filterStatus !== "all" || filterType !== "all" || search !== "";
   const canDrag = !isFiltered;
-
-  async function createJob(data: object) {
-    await api.createJob(data);
-    await loadJobs();
-    setShowCreate(false);
-  }
 
   async function toggleJob(job: Job) {
     if (job.status === "paused") await api.resumeJob(job.id);
@@ -238,7 +274,7 @@ function JobList({
   return (
     <>
       {/* Stats bar */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
         {[
           { label: "Total Jobs", value: stats.total, color: "var(--text-0)" },
           { label: "Active", value: stats.active, color: "var(--success)" },
@@ -247,15 +283,17 @@ function JobList({
           <Card
             key={s.label}
             style={{
-              padding: "10px 18px",
+              padding: "14px 20px",
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: 12,
+              flex: "1 1 auto",
+              minWidth: 140,
             }}
           >
             <span
               style={{
-                fontSize: 22,
+                fontSize: 28,
                 fontWeight: 700,
                 fontFamily: "var(--font-mono)",
                 color: s.color,
@@ -265,10 +303,11 @@ function JobList({
             </span>
             <span
               style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: "var(--text-1)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
+                fontWeight: 500,
               }}
             >
               {s.label}
@@ -276,7 +315,7 @@ function JobList({
           </Card>
         ))}
         <div style={{ flex: 1 }} />
-        <Button variant="primary" onClick={() => setShowCreate(true)}>
+        <Button variant="primary" onClick={() => navigate("/jobs/new")}>
           + New Job
         </Button>
       </div>
@@ -286,15 +325,21 @@ function JobList({
         style={{
           display: "flex",
           gap: 10,
-          marginBottom: 16,
+          marginBottom: 18,
           alignItems: "center",
+          flexWrap: "wrap",
         }}
       >
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search jobs..."
-          style={{ width: 220 }}
+          style={{
+            width: 220,
+            fontSize: 14,
+            padding: "10px 14px",
+            minHeight: 42,
+          }}
         />
         <FilterChip
           label="All"
@@ -356,8 +401,8 @@ function JobList({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
-            gap: 10,
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(350px, 100%), 1fr))",
+            gap: 14,
             gridAutoRows: "1fr",
           }}
         >
@@ -366,7 +411,7 @@ function JobList({
               key={job.id}
               job={job}
               onClick={() => navigate(`/jobs/${job.id}`)}
-              onEdit={() => setEditJob(job)}
+              onEdit={() => navigate(`/jobs/${job.id}/edit`)}
               onToggle={() => toggleJob(job)}
               onDelete={() => deleteJob(job)}
               draggable={canDrag}
@@ -380,21 +425,6 @@ function JobList({
           ))}
         </div>
       )}
-
-      {showCreate && (
-        <Modal title="New Job" onClose={() => setShowCreate(false)}>
-          <JobForm onSubmit={createJob} onCancel={() => setShowCreate(false)} />
-        </Modal>
-      )}
-      {editJob && (
-        <Modal title="Edit Job" onClose={() => setEditJob(null)}>
-          <JobForm
-            initial={editJob}
-            onSubmit={updateJob}
-            onCancel={() => setEditJob(null)}
-          />
-        </Modal>
-      )}
     </>
   );
 }
@@ -405,31 +435,21 @@ function Header() {
       style={{
         background: "var(--bg-1)",
         borderBottom: "1px solid var(--border)",
-        padding: "0 20px",
-        height: 52,
+        padding: "14px 20px",
         display: "flex",
         alignItems: "center",
-        gap: 12,
+        gap: 10,
       }}
     >
       <span
         style={{
           fontFamily: "var(--font-mono)",
-          fontWeight: 600,
-          fontSize: 16,
+          fontWeight: 700,
+          fontSize: 20,
           letterSpacing: "-0.02em",
         }}
       >
         <span style={{ color: "var(--accent)" }}>⬡</span> croniq
-      </span>
-      <span
-        style={{
-          color: "var(--text-2)",
-          fontSize: 12,
-          fontFamily: "var(--font-mono)",
-        }}
-      >
-        scheduled data collection
       </span>
     </div>
   );
@@ -487,7 +507,7 @@ function JobCard({
       <Card
         onClick={onClick}
         style={{
-          padding: "14px",
+          padding: "18px",
           cursor: "pointer",
           height: "100%",
           display: "flex",
@@ -500,7 +520,7 @@ function JobCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginBottom: 8,
+            marginBottom: 10,
             flex: "0 0 auto",
           }}
         >
@@ -508,7 +528,7 @@ function JobCard({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: 8,
               minWidth: 0,
               flex: 1,
             }}
@@ -519,7 +539,7 @@ function JobCard({
                 style={{
                   cursor: "grab",
                   color: "var(--text-2)",
-                  fontSize: 12,
+                  fontSize: 14,
                   userSelect: "none",
                   flexShrink: 0,
                   lineHeight: 1,
@@ -531,8 +551,8 @@ function JobCard({
             )}
             <span
               style={{
-                fontWeight: 500,
-                fontSize: 13,
+                fontWeight: 600,
+                fontSize: 16,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -617,7 +637,7 @@ function JobCard({
         >
           <span
             style={{
-              fontSize: 10,
+              fontSize: 12,
               color: job.status === "error" ? "var(--danger)" : "var(--text-2)",
               fontFamily: "var(--font-mono)",
             }}
@@ -626,7 +646,7 @@ function JobCard({
               ? `${job.status === "error" ? "failed" : "last"} ${formatDistanceToNow(new Date(job.lastRunAt), { addSuffix: true })}`
               : "no runs yet"}
           </span>
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={{ display: "flex", gap: 6 }}>
             <Button size="sm" variant="ghost" onClick={onToggle}>
               {job.status === "paused" ? "▶" : "⏸"}
             </Button>
@@ -664,14 +684,14 @@ function CronChip({ schedule }: { schedule: string }) {
       title={description}
       style={{
         display: "inline-block",
-        fontSize: 11,
+        fontSize: 13,
         color: "var(--text-1)",
         fontFamily: "var(--font-mono)",
         background: "var(--bg-0)",
         border: "1px solid var(--border)",
-        borderRadius: 4,
-        padding: "2px 7px",
-        marginBottom: 4,
+        borderRadius: 5,
+        padding: "4px 10px",
+        marginBottom: 6,
         cursor: "default",
         transition: "border-color 0.15s, color 0.15s",
       }}
@@ -702,14 +722,16 @@ function FilterChip({
     <button
       onClick={onClick}
       style={{
-        padding: "3px 10px",
-        fontSize: 11,
-        borderRadius: 4,
+        padding: "8px 14px",
+        fontSize: 13,
+        borderRadius: 5,
         cursor: "pointer",
         background: active ? "var(--accent-dim)" : "transparent",
         border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
         color: active ? "var(--accent)" : "var(--text-1)",
         fontFamily: "var(--font-mono)",
+        minHeight: 38,
+        fontWeight: 500,
       }}
     >
       {label}

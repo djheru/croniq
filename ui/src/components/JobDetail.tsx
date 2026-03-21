@@ -248,7 +248,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [stages, setStages] = useState<RunStage[]>([]);
-  const [runsExpanded, setRunsExpanded] = useState(true);
+  const [runsExpanded, setRunsExpanded] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [scheduleInput, setScheduleInput] = useState(job.schedule);
   const [savingSchedule, setSavingSchedule] = useState(false);
@@ -424,7 +424,7 @@ export function JobDetail({ job, onEdit, onBack, onJobUpdated }: {
         title="Run History"
         expanded={runsExpanded}
         onToggle={() => setRunsExpanded(!runsExpanded)}
-        collapsible={false}
+        collapsible={true}
         count={runs.length}
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: 20 }}>

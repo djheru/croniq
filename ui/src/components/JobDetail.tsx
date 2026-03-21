@@ -390,7 +390,7 @@ export function JobDetail({
   const [triggering, setTriggering] = useState(false);
   const [stages, setStages] = useState<RunStage[]>([]);
   const [runsExpanded, setRunsExpanded] = useState(true);
-  const [runsListExpanded, setRunsListExpanded] = useState(true);
+  const [runsListExpanded, setRunsListExpanded] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [scheduleInput, setScheduleInput] = useState(job.schedule);
   const [savingSchedule, setSavingSchedule] = useState(false);

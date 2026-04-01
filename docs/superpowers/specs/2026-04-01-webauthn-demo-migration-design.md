@@ -94,7 +94,7 @@ CREATE TABLE passkeys (
   user_id TEXT NOT NULL REFERENCES users(id),
   public_key BLOB NOT NULL,          -- raw bytes from verifyRegistrationResponse
   counter INTEGER NOT NULL DEFAULT 0,
-  device_type TEXT,                  -- 'platform' | 'cross-platform'
+  device_type TEXT NOT NULL CHECK(device_type IN ('singleDevice','multiDevice')),
   backed_up INTEGER NOT NULL DEFAULT 0,
   transports TEXT,                   -- JSON array e.g. '["internal"]'
   label TEXT,                        -- user-editable display name
@@ -337,6 +337,7 @@ if contentHash === previousRun.content_hash && previousRun.status === 'complete'
   ↓
 setRunStatus(runId, 'analyzing')
 analyzeWithBedrock(rawData, job.jobPrompt, job.name)
+  -- job.jobPrompt is the camelCase form of the unchanged jobs.job_prompt DB column
   ↓
 completeRun(runId, 'complete', contentHash, rawData, analysis, true, inputTokens, outputTokens, duration, null)
   ↓
@@ -413,7 +414,7 @@ Token pricing constants are for Claude Haiku 4.5. Cost estimation is approximate
 ### AuthContext (`App.tsx`)
 
 ```typescript
-interface AuthPasskey { id: string; label: string | null; createdAt: string; lastUsedAt: string | null; deviceType: string | null; backedUp: boolean }
+interface AuthPasskey { id: string; label: string | null; createdAt: string; lastUsedAt: string | null; deviceType: 'singleDevice' | 'multiDevice'; backedUp: boolean }
 interface AuthUser { id: string; email: string; passkeys: AuthPasskey[] }
 interface AuthContextValue { user: AuthUser | null; loading: boolean; refresh: () => Promise<void> }
 ```
@@ -566,6 +567,8 @@ CREATE TABLE runs_new (
 
 -- 2. Copy existing runs (map old column names to new)
 --    'result' was double-JSON-stringified; copy as-is into 'analysis' (clients must handle both)
+--    Note: the existing 'runs' table already has a 'changed' column (added in an earlier migration);
+--    this SELECT relies on that column being present in the source table.
 INSERT INTO runs_new
   SELECT
     id,

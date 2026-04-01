@@ -192,7 +192,7 @@ requireSession middleware — rejects 401 for /api/* except: /api/auth/*, /api/c
 
 | Method | Path | Auth required | Description |
 |--------|------|---------------|-------------|
-| POST | /api/auth/register/options | No | Generate WebAuthn registration options + store challenge (user_id: null) |
+| POST | /api/auth/register/options | No | Create user speculatively, generate WebAuthn registration options, store challenge |
 | POST | /api/auth/register/verify | No | Verify attestation, create user + passkey, issue recovery code, create session |
 | POST | /api/auth/login/options | No | Generate WebAuthn authentication options |
 | POST | /api/auth/login/verify | No | Verify assertion, update counter, create session |

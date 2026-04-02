@@ -210,7 +210,7 @@ function toJob(row: Record<string, unknown>): Job {
     name: row.name as string,
     description: row.description as string | undefined,
     schedule: row.schedule as string,
-    sources: JSON.parse(row.sources as string),
+    sources: row.sources ? JSON.parse(row.sources as string) : [],
     outputFormat: row.output_format as Job['outputFormat'],
     tags: JSON.parse(row.tags as string),
     notifyOnChange: Boolean(row.notify_on_change),
@@ -324,10 +324,13 @@ export function storeChallenge(challenge: string, userId: string, purpose: 'regi
 }
 
 export function consumeChallenge(challenge: string, purpose: 'registration' | 'authentication'): DbChallenge | undefined {
-  const row = db.prepare('SELECT * FROM challenges WHERE challenge = ? AND purpose = ?').get(challenge, purpose) as DbChallenge | undefined;
-  if (!row) return undefined;
-  db.prepare('DELETE FROM challenges WHERE challenge = ?').run(challenge);
-  return row;
+  const consume = db.transaction(() => {
+    const row = db.prepare('SELECT * FROM challenges WHERE challenge = ? AND purpose = ?').get(challenge, purpose) as DbChallenge | undefined;
+    if (!row) return undefined;
+    db.prepare('DELETE FROM challenges WHERE challenge = ?').run(challenge);
+    return row;
+  });
+  return consume() as DbChallenge | undefined;
 }
 
 // ─── Auth: Audit Log ──────────────────────────────────────────────────────────
@@ -510,7 +513,7 @@ export function getStats(): StatsRow {
   const row = db.prepare(`
     SELECT
       COUNT(*) as total_runs,
-      ROUND(100.0 * SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END) / MAX(COUNT(*), 1), 1) as success_rate,
+      ROUND(100.0 * SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) as success_rate,
       SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped_runs,
       COALESCE(SUM(input_tokens), 0) as total_input_tokens,
       COALESCE(SUM(output_tokens), 0) as total_output_tokens,

@@ -93,6 +93,21 @@ const DataSourceSchema = z.object({
   config: CollectorConfigSchema,
 });
 
+const UpdateJobSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  schedule: z.string().optional(),
+  sources: z.array(DataSourceSchema).min(1).optional(),
+  outputFormat: z.enum(['json','text','csv','list']).optional(),
+  tags: z.array(z.string()).optional(),
+  jobPrompt: z.string().optional(),
+  jobParams: z.record(z.string()).optional(),
+  notifyOnChange: z.boolean().optional(),
+  webhookUrl: z.string().url().optional().nullable(),
+  retries: z.number().int().min(0).max(5).optional(),
+  timeoutMs: z.number().int().min(1000).max(300000).optional(),
+});
+
 const CreateJobSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -140,7 +155,9 @@ apiRouter.post('/jobs', (req, res) => {
 apiRouter.patch('/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
-  const updated = updateJobById(req.params.id, req.body);
+  const parsed = UpdateJobSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const updated = updateJobById(req.params.id, parsed.data);
   if (updated) {
     unscheduleJob(updated.id);
     if (updated.status === 'active') scheduleJob(updated);
@@ -185,7 +202,7 @@ apiRouter.post('/jobs/:id/run', async (req, res) => {
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
 apiRouter.get('/jobs/:id/runs', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const limit = Math.max(1, Math.min(parseInt(req.query.limit as string) || 50, 200));
   const runs = listRuns(req.params.id, limit);
   res.json({ data: runs.map(toRunResponse) });
 });

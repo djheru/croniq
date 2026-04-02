@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { initDb } from './db.js';
 import { initScheduler } from './scheduler/index.js';
 import { authRouter } from './auth/routes.js';
-import { router as apiRouter } from './api/routes.js';
+import { apiRouter } from './api/routes.js';
 
 // Session type augmentation
 declare module 'express-session' {
@@ -65,9 +65,6 @@ app.use('/api', (req, res, next) => {
 // --- Routes ---
 app.use(authRouter);
 app.use('/api', apiRouter);
-
-// --- Health ---
-app.get('/api/health', (_, res) => res.json({ ok: true }));
 
 // --- Static UI (production) ---
 if (IS_PROD) {

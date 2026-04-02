@@ -8,8 +8,8 @@
     "dev:ui": "cd ui && npm run dev",
     "build": "tsc && cd ui && npm run build",
     "start": "node dist/server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
+    "test": "node ./node_modules/.bin/jest",
+    "test:watch": "node ./node_modules/.bin/jest --watch",
     "db:export": "tsx scripts/export.ts",
     "db:import": "tsx scripts/import.ts",
     "db:seed": "tsx scripts/seed.ts"

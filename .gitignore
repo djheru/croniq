@@ -7,6 +7,7 @@ data/
 .DS_Store
 ui/dist/
 .superpowers/
+.worktrees/
 
 # Backup files (auto-generated, don't commit)
 scripts/backup.json

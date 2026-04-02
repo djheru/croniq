@@ -4,7 +4,8 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "rootDir": ".",
-    "outDir": "./dist-test"
+    "outDir": "./dist-test",
+    "types": ["node", "express", "jest"]
   },
   "include": ["src/**/*", "tests/**/*"]
 }

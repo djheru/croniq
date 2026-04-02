@@ -10,6 +10,7 @@ function applyTransform(value: string, transform?: SelectorSpec['transform']): s
     case 'number':    return parseFloat(value.replace(/[^0-9.-]/g, ''));
     case 'lowercase': return value.toLowerCase().trim();
     case 'uppercase': return value.toUpperCase().trim();
+    default:          return value.trim();
   }
 }
 

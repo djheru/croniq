@@ -96,7 +96,7 @@ authRouter.post('/api/auth/login/options', authLimiter, async (req, res) => {
   const user = findUserByEmail(email.toLowerCase().trim());
   if (!user) {
     const dummy = await generateAuthenticationOptions({ rpID: RP_ID, allowCredentials: [], userVerification: 'required' });
-    storeChallenge(dummy.challenge, 'nonexistent-user', 'authentication');
+    // Don't store the challenge — this user doesn't exist and will never verify
     return res.json(dummy);
   }
   const passkeys = getPasskeysByUser(user.id);
@@ -140,19 +140,24 @@ authRouter.post('/api/auth/login/verify', authLimiter, async (req, res) => {
 
 // ===== RECOVERY =====
 authRouter.post('/api/auth/recover', authLimiter, async (req, res) => {
-  const { email, recoveryCode } = req.body;
-  if (!email || !recoveryCode) return res.status(400).json({ error: 'Email and recovery code required' });
-  const user = findUserByEmail(email.toLowerCase().trim());
-  if (!user || !user.recovery_code_hash) return res.status(400).json({ error: 'Recovery failed.' });
-  const valid = await bcrypt.compare(recoveryCode, user.recovery_code_hash);
-  if (!valid) return res.status(400).json({ error: 'Recovery failed.' });
+  try {
+    const { email, recoveryCode } = req.body;
+    if (!email || !recoveryCode) return res.status(400).json({ error: 'Email and recovery code required' });
+    const user = findUserByEmail(email.toLowerCase().trim());
+    if (!user || !user.recovery_code_hash) return res.status(400).json({ error: 'Recovery failed.' });
+    const valid = await bcrypt.compare(recoveryCode, user.recovery_code_hash);
+    if (!valid) return res.status(400).json({ error: 'Recovery failed.' });
 
-  const newCode = randomBytes(32).toString('base64url');
-  const newHash = await bcrypt.hash(newCode, 10);
-  setRecoveryCodeHash(user.id, newHash);
-  (req.session as any).userId = user.id;
-  logAuditEvent(user.id, 'recovered', '', getClientIp(req));
-  res.json({ ok: true, newRecoveryCode: newCode });
+    const newCode = randomBytes(32).toString('base64url');
+    const newHash = await bcrypt.hash(newCode, 10);
+    setRecoveryCodeHash(user.id, newHash);
+    (req.session as any).userId = user.id;
+    logAuditEvent(user.id, 'recovered', '', getClientIp(req));
+    res.json({ ok: true, newRecoveryCode: newCode });
+  } catch (err) {
+    logAuditEvent(null, 'recovery.error', String(err), getClientIp(req));
+    return res.status(400).json({ error: 'Recovery failed.' });
+  }
 });
 
 // ===== SESSION / ME =====

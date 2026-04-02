@@ -509,6 +509,13 @@ export function getRunById(id: string): DbRun | undefined {
   return row ? toRun(row) : undefined;
 }
 
+export function listRecentRuns(limit = 10): DbRun[] {
+  const rows = db.prepare(`
+    SELECT * FROM runs ORDER BY started_at DESC LIMIT ?
+  `).all(limit) as Record<string, unknown>[];
+  return rows.map(toRun);
+}
+
 export function getStats(): StatsRow {
   const row = db.prepare(`
     SELECT

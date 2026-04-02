@@ -3,13 +3,35 @@ import { z } from 'zod';
 import { execSync } from 'child_process';
 import {
   listJobs, getJob, createJob, updateJobById, deleteJob, reorderJobs,
-  listRuns, getLastRun, getRunStats, setJobStatus,
-  listRunStages, getPipelineStats,
-} from '../db/queries.js';
-import { scheduleJob, unscheduleJob, rescheduleJob, getScheduledIds } from '../jobs/scheduler.js';
-import { runJob } from '../jobs/runner.js';
+  listRuns, getRunById, getStats, setJobStatus, listRecentRuns,
+} from '../db.js';
+import type { DbRun } from '../db.js';
+import { scheduleJob, unscheduleJob } from '../scheduler/index.js';
+import { runJob } from '../runner.js';
+import type { Run } from '../types/index.js';
 
-export const router = Router();
+export const apiRouter = Router();
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toRunResponse(run: DbRun): Run {
+  return {
+    id: run.id,
+    jobId: run.jobId,
+    status: run.status,
+    contentHash: run.contentHash ?? undefined,
+    rawData: run.rawData ? JSON.parse(run.rawData) : undefined,
+    analysis: run.analysis ?? undefined,
+    bedrockInvoked: run.bedrockInvoked,
+    inputTokens: run.inputTokens,
+    outputTokens: run.outputTokens,
+    error: run.error ?? undefined,
+    changed: run.changed,
+    durationMs: run.durationMs ?? undefined,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt ?? undefined,
+  };
+}
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -88,27 +110,26 @@ const CreateJobSchema = z.object({
 
 // ─── Jobs ─────────────────────────────────────────────────────────────────────
 
-router.get('/jobs', (_req, res) => {
+apiRouter.get('/jobs', (_req, res) => {
   const jobs = listJobs();
-  const scheduled = getScheduledIds();
-  res.json({ data: jobs.map(j => ({ ...j, isScheduled: scheduled.includes(j.id) })) });
+  res.json({ data: jobs });
 });
 
 // Reorder jobs (must be before /jobs/:id to avoid param matching)
-router.put('/jobs/reorder', (req, res) => {
+apiRouter.put('/jobs/reorder', (req, res) => {
   const parsed = z.object({ orderedIds: z.array(z.string()) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   reorderJobs(parsed.data.orderedIds);
   res.json({ data: { reordered: true } });
 });
 
-router.get('/jobs/:id', (req, res) => {
+apiRouter.get('/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   res.json({ data: job });
 });
 
-router.post('/jobs', (req, res) => {
+apiRouter.post('/jobs', (req, res) => {
   const parsed = CreateJobSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const job = createJob(parsed.data);
@@ -116,15 +137,18 @@ router.post('/jobs', (req, res) => {
   res.status(201).json({ data: job });
 });
 
-router.patch('/jobs/:id', (req, res) => {
+apiRouter.patch('/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   const updated = updateJobById(req.params.id, req.body);
-  if (updated) rescheduleJob(updated);
+  if (updated) {
+    unscheduleJob(updated.id);
+    if (updated.status === 'active') scheduleJob(updated);
+  }
   res.json({ data: updated });
 });
 
-router.delete('/jobs/:id', (req, res) => {
+apiRouter.delete('/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   unscheduleJob(req.params.id);
@@ -133,7 +157,7 @@ router.delete('/jobs/:id', (req, res) => {
 });
 
 // Pause / resume
-router.post('/jobs/:id/pause', (req, res) => {
+apiRouter.post('/jobs/:id/pause', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   setJobStatus(req.params.id, 'paused');
@@ -141,7 +165,7 @@ router.post('/jobs/:id/pause', (req, res) => {
   res.json({ data: getJob(req.params.id) });
 });
 
-router.post('/jobs/:id/resume', (req, res) => {
+apiRouter.post('/jobs/:id/resume', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   setJobStatus(req.params.id, 'active');
@@ -150,99 +174,55 @@ router.post('/jobs/:id/resume', (req, res) => {
 });
 
 // Manual trigger
-router.post('/jobs/:id/run', async (req, res) => {
+apiRouter.post('/jobs/:id/run', async (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   // Fire async, return immediately
-  runJob(job).catch(console.error);
+  runJob(req.params.id).catch(console.error);
   res.json({ data: { triggered: true } });
 });
 
 // ─── Runs ─────────────────────────────────────────────────────────────────────
 
-router.get('/jobs/:id/runs', (req, res) => {
+apiRouter.get('/jobs/:id/runs', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
   const runs = listRuns(req.params.id, limit);
-  const stats = getRunStats(req.params.id);
-  res.json({ data: runs, stats });
+  res.json({ data: runs.map(toRunResponse) });
 });
 
-router.get('/jobs/:id/runs/latest', (req, res) => {
-  const run = getLastRun(req.params.id);
-  if (!run) return res.status(404).json({ error: 'No runs yet' });
-  res.json({ data: run });
+apiRouter.get('/jobs/:id/runs/latest', (req, res) => {
+  const runs = listRuns(req.params.id, 1);
+  if (!runs.length) return res.status(404).json({ error: 'No runs yet' });
+  res.json({ data: toRunResponse(runs[0]) });
 });
 
-router.get('/jobs/:id/runs/:runId/stages', (req, res) => {
-  const stages = listRunStages(req.params.runId);
-  res.json({ data: stages });
+apiRouter.get('/runs/:id', (req, res) => {
+  const run = getRunById(req.params.id);
+  if (!run) return res.status(404).json({ error: 'Not found' });
+  res.json({ data: toRunResponse(run) });
 });
 
-// ─── Stats ───────────────────────────────────────────────────────────────────
+// ─── Stats ────────────────────────────────────────────────────────────────────
 
-// Blended cost per 1M tokens (assumes ~70% input, 30% output)
-// AWS Bedrock pricing: Haiku ($1/$5), Sonnet 4.6 ($3/$15), Opus 4.6 ($5/$25)
-const MODEL_COST_PER_MTOK: Record<string, number> = {
-  'us.anthropic.claude-haiku-4-5-20251001-v1:0': 2.20,  // 0.70*1.00 + 0.30*5.00
-  'us.anthropic.claude-sonnet-4-6-v1:0': 6.60,          // 0.70*3.00 + 0.30*15.00
-  'us.anthropic.claude-opus-4-6-v1:0': 11.00,           // 0.70*5.00 + 0.30*25.00
-};
-const DEFAULT_COST_PER_MTOK = 2.20;  // Default to Haiku pricing
-
-const PERIOD_OFFSETS: Record<string, number> = {
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-};
-
-router.get('/stats', (req, res) => {
-  const period = (req.query.period as string) ?? '24h';
-  const offsetMs = PERIOD_OFFSETS[period];
-  const since = offsetMs
-    ? new Date(Date.now() - offsetMs).toISOString()
-    : undefined;
-
-  const stats = getPipelineStats(since);
-
-  const models = stats.models.map((m) => {
-    const costRate = MODEL_COST_PER_MTOK[m.modelId] ?? DEFAULT_COST_PER_MTOK;
-    const estimatedCostUsd = (m.totalTokens / 1_000_000) * costRate;
-    return { ...m, estimatedCostUsd: Math.round(estimatedCostUsd * 10000) / 10000 };
-  });
-
-  const totalTokens = models.reduce((sum, m) => sum + m.totalTokens, 0);
-  const totalCostUsd = models.reduce((sum, m) => sum + m.estimatedCostUsd, 0);
-
-  res.json({
-    data: {
-      period,
-      since: since ?? 'all',
-      runs: {
-        total: stats.totalRuns,
-        success: stats.success,
-        failures: stats.failures,
-        timeouts: stats.timeouts,
-        avgDurationMs: stats.avgDurationMs,
-      },
-      models,
-      totals: {
-        totalTokens,
-        estimatedCostUsd: Math.round(totalCostUsd * 10000) / 10000,
-      },
-      note: 'Cost estimates use blended input/output rates (70/30 split assumption).',
-    },
-  });
+apiRouter.get('/stats', (_req, res) => {
+  const stats = getStats();
+  // Haiku 4.5 pricing (approximate): $0.80/M input tokens, $4.00/M output tokens
+  const estimatedCostUsd =
+    (stats.totalInputTokens / 1_000_000) * 0.80 +
+    (stats.totalOutputTokens / 1_000_000) * 4.00;
+  const recentRuns = listRecentRuns(10);
+  res.json({ ...stats, estimatedCostUsd, recentRuns: recentRuns.map(toRunResponse) });
 });
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
-router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', scheduledJobs: getScheduledIds().length });
+apiRouter.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
 // ─── System Metrics (Pi) ──────────────────────────────────────────────────────
 
-router.get('/system/metrics', (_req, res) => {
+apiRouter.get('/system/metrics', (_req, res) => {
   try {
     // Temperature (Linux thermal zone)
     const tempRaw = execSync('cat /sys/class/thermal/thermal_zone0/temp', { encoding: 'utf-8' }).trim();

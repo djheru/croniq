@@ -112,19 +112,23 @@ export type UpdateJobInput = Partial<CreateJobInput>;
 
 // ─── Run ──────────────────────────────────────────────────────────────────────
 
-export type RunOutcome = 'success' | 'failure' | 'timeout';
+export type RunStatus = 'pending' | 'collecting' | 'analyzing' | 'complete' | 'error' | 'skipped';
 
 export interface Run {
   id: string;
   jobId: string;
+  status: RunStatus;
+  contentHash?: string;
+  rawData?: unknown;       // CollectorResult[]
+  analysis?: string;       // markdown
+  bedrockInvoked: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  error?: string;
+  changed: boolean;
+  durationMs?: number;
   startedAt: string;
   finishedAt?: string;
-  durationMs?: number;
-  outcome: RunOutcome;
-  result?: unknown;
-  error?: string;
-  changed: boolean;          // true if result differs from previous run
-  resultHash?: string;
 }
 
 // ─── API Responses ────────────────────────────────────────────────────────────

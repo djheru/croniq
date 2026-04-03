@@ -48,7 +48,7 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
   getTokenFromRequest: req => req.headers['x-csrf-token'] as string,
 });
 
-app.get('/api/csrf-token', (req, res) => res.json({ token: generateToken(req, res) }));
+app.get('/api/csrf-token', (req, res) => res.json({ token: generateToken(req, res, true) }));
 app.use(doubleCsrfProtection);
 
 // --- Rate limiting (global) ---

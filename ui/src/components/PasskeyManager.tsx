@@ -64,7 +64,9 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
       await apiFetch('/api/passkeys/verify', { method: 'POST', body: JSON.stringify(attResp) });
       await loadPasskeys();
     } catch (err) {
-      setError((err as Error).message);
+      const e = err as Error;
+      if (e.name === 'NotAllowedError') setError('Ceremony cancelled — try again.');
+      else setError(e.message);
     } finally {
       setAddingPasskey(false);
     }

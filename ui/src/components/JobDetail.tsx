@@ -1,6 +1,6 @@
 import { format, formatDistanceToNow } from "date-fns";
 import React, { useEffect, useState, type ReactNode } from "react";
-import Markdown from "react-markdown";
+import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, type Job, type Run } from "../api";
 import { Badge, Button, Card, Empty, Spinner } from "./ui";
@@ -18,12 +18,9 @@ function AnalysisMarkdown({ content }: { content: string }) {
     <Markdown
       remarkPlugins={[remarkGfm]}
       components={{
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        a: (props: any) => (
-          <a href={props.href} target="_blank" rel="noopener noreferrer">
-            {props.children}
-          </a>
-        ),
+        a: (({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+        )) as Components['a'],
       }}
     >
       {content}

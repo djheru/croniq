@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import { useAuth } from '../App';
-import { apiFetch, getAuthStatus, authLogout } from '../api';
+import { apiFetch, getAuthStatus } from '../api';
 import { Button, Card, Spinner } from '../components/ui';
 
 type Tab = 'register' | 'login' | 'recover';
@@ -113,10 +113,16 @@ export default function Auth() {
     }
   }
 
-  function handleContinueAfterCode() {
+  async function handleContinueAfterCode() {
     const isRecovery = tab === 'recover';
     setShownRecoveryCode(null);
-    refresh().then(() => navigate(isRecovery ? '/app?openPasskeys=1' : '/app'));
+    try {
+      await refresh();
+      navigate(isRecovery ? '/app?openPasskeys=1' : '/app');
+    } catch {
+      setError('Failed to verify session — please sign in.');
+      navigate('/auth');
+    }
   }
 
   async function copyCode() {

@@ -1,15 +1,27 @@
 import cronstrue from "cronstrue";
 import { formatDistanceToNow } from "date-fns";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, type Job } from "./api";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { fetchMe, api, type AuthUser, type Job } from "./api";
+import Landing from "./pages/Landing";
+import Auth from "./pages/Auth";
+import Nav from "./components/Nav";
 import { JobDetail, StatusBadge } from "./components/JobDetail";
 import { JobForm } from "./components/JobForm";
 import { Badge, Button, Card, Empty, Spinner } from "./components/ui";
 
-export default function App() {
+// --- AuthContext ---
+interface AuthContextValue { user: AuthUser | null; loading: boolean; refresh: () => Promise<void> }
+export const AuthContext = createContext<AuthContextValue>({ user: null, loading: true, refresh: async () => {} });
+export const useAuth = () => useContext(AuthContext);
+
+// ─── AppShell ──────────────────────────────────────────────────────────────────
+function AppShell() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [passkeyManagerOpen, setPasskeyManagerOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const loadJobs = useCallback(async () => {
     try {
@@ -20,44 +32,29 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    loadJobs();
-  }, [loadJobs]);
-
+  useEffect(() => { loadJobs(); }, [loadJobs]);
   useEffect(() => {
     const id = setInterval(loadJobs, 30000);
     return () => clearInterval(id);
   }, [loadJobs]);
 
+  // Auto-open PasskeyManager after recovery
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('openPasskeys') === '1') {
+      setPasskeyManagerOpen(true);
+      navigate('/app', { replace: true });
+    }
+  }, [location.search, navigate]);
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-0)" }}>
-      <Header />
-      <div style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 12px" }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-0)' }}>
+      <Nav passkeyManagerOpen={passkeyManagerOpen} setPasskeyManagerOpen={setPasskeyManagerOpen} />
+      <div style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 12px' }}>
         <Routes>
-          <Route
-            path="/"
-            element={
-              <JobList jobs={jobs} loading={loading} loadJobs={loadJobs} />
-            }
-          />
-          <Route
-            path="/jobs/new"
-            element={<JobFormRoute loadJobs={loadJobs} />}
-          />
-          <Route
-            path="/jobs/:id"
-            element={
-              <JobDetailRoute
-                jobs={jobs}
-                loading={loading}
-                loadJobs={loadJobs}
-              />
-            }
-          />
-          <Route
-            path="/jobs/:id/edit"
-            element={<JobEditRoute jobs={jobs} loadJobs={loadJobs} />}
-          />
+          <Route path="/" element={<JobList jobs={jobs} loading={loading} loadJobs={loadJobs} />} />
+          <Route path="/jobs/new" element={<JobFormRoute loadJobs={loadJobs} />} />
+          <Route path="/jobs/:id" element={<JobDetailRoute jobs={jobs} loading={loading} loadJobs={loadJobs} />} />
+          <Route path="/jobs/:id/edit" element={<JobEditRoute jobs={jobs} loadJobs={loadJobs} />} />
         </Routes>
       </div>
       <Footer />
@@ -66,13 +63,45 @@ export default function App() {
   );
 }
 
+// ─── Root App ──────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setUser(await fetchMe());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-0)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+      Loading…
+    </div>
+  );
+
+  return (
+    <AuthContext.Provider value={{ user, loading, refresh }}>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/auth" element={user ? <Navigate to="/app" replace /> : <Auth />} />
+        <Route path="/app/*" element={user ? <AppShell /> : <Navigate to="/auth" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthContext.Provider>
+  );
+}
+
+// ─── Job Routes ────────────────────────────────────────────────────────────────
 function JobFormRoute({ loadJobs }: { loadJobs: () => Promise<void> }) {
   const navigate = useNavigate();
 
   async function createJob(data: object) {
     await api.createJob(data);
     await loadJobs();
-    navigate("/");
+    navigate("/app");
   }
 
   return (
@@ -86,7 +115,7 @@ function JobFormRoute({ loadJobs }: { loadJobs: () => Promise<void> }) {
         }}
       >
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/app")}
           style={{
             background: "none",
             border: "none",
@@ -103,7 +132,7 @@ function JobFormRoute({ loadJobs }: { loadJobs: () => Promise<void> }) {
         <h2 style={{ fontSize: 20, fontWeight: 600 }}>New Job</h2>
       </div>
       <Card style={{ padding: 20 }}>
-        <JobForm onSubmit={createJob} onCancel={() => navigate("/")} />
+        <JobForm onSubmit={createJob} onCancel={() => navigate("/app")} />
       </Card>
     </div>
   );
@@ -128,7 +157,7 @@ function JobEditRoute({
       api
         .getJob(id)
         .then((res) => setJob(res.data))
-        .catch(() => navigate("/"));
+        .catch(() => navigate("/app"));
     }
   }, [id, jobs, navigate]);
 
@@ -136,7 +165,7 @@ function JobEditRoute({
     if (!id) return;
     await api.updateJob(id, data);
     await loadJobs();
-    navigate(`/jobs/${id}`);
+    navigate(`/app/jobs/${id}`);
   }
 
   if (!job) {
@@ -158,7 +187,7 @@ function JobEditRoute({
         }}
       >
         <button
-          onClick={() => navigate(`/jobs/${id}`)}
+          onClick={() => navigate(`/app/jobs/${id}`)}
           style={{
             background: "none",
             border: "none",
@@ -178,7 +207,7 @@ function JobEditRoute({
         <JobForm
           initial={job}
           onSubmit={updateJob}
-          onCancel={() => navigate(`/jobs/${id}`)}
+          onCancel={() => navigate(`/app/jobs/${id}`)}
         />
       </Card>
     </div>
@@ -206,7 +235,7 @@ function JobDetailRoute({
     api
       .getJob(id)
       .then((res) => setDirectJob(res.data))
-      .catch(() => navigate("/"));
+      .catch(() => navigate("/app"));
   }, [id, jobs, loading, directJob, navigate]);
 
   const job = jobs.find((j) => j.id === id) ?? directJob;
@@ -226,13 +255,14 @@ function JobDetailRoute({
   return (
     <JobDetail
       job={job}
-      onEdit={() => navigate(`/jobs/${id}/edit`)}
-      onBack={() => navigate("/")}
+      onEdit={() => navigate(`/app/jobs/${id}/edit`)}
+      onBack={() => navigate("/app")}
       onJobUpdated={loadJobs}
     />
   );
 }
 
+// ─── JobList ───────────────────────────────────────────────────────────────────
 function JobList({
   jobs,
   loading,
@@ -262,7 +292,6 @@ function JobList({
   }
 
   async function deleteJob(job: Job) {
-    // if (!confirm(`Delete "${job.name}"?`)) return;
     await api.deleteJob(job.id);
     await loadJobs();
   }
@@ -313,61 +342,8 @@ function JobList({
     return true;
   });
 
-  const stats = {
-    total: jobs.length,
-    active: jobs.filter((j) => j.status === "active").length,
-    errors: jobs.filter((j) => j.status === "error").length,
-  };
-
   return (
     <>
-      {/* Stats bar */}
-      {/*<div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
-         {[
-          { label: "Total Jobs", value: stats.total, color: "var(--text-0)" },
-          { label: "Active", value: stats.active, color: "var(--success)" },
-          { label: "Errors", value: stats.errors, color: "var(--danger)" },
-        ].map((s) => (
-          <Card
-            key={s.label}
-            style={{
-              padding: "14px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flex: "1 1 auto",
-              minWidth: 140,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                fontFamily: "var(--font-mono)",
-                color: s.color,
-              }}
-            >
-              {s.value}
-            </span>
-            <span
-              style={{
-                fontSize: 12,
-                color: "var(--text-1)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                fontWeight: 500,
-              }}
-            >
-              {s.label}
-            </span>
-          </Card>
-        ))} 
-        <div style={{ flex: 1 }} />
-        <Button variant="primary" onClick={() => navigate("/jobs/new")}>
-          + New Job
-        </Button>
-      </div>*/}
-
       {/* Filters */}
       <div
         style={{
@@ -380,7 +356,7 @@ function JobList({
       >
         <Button
           variant="primary"
-          onClick={() => navigate("/jobs/new")}
+          onClick={() => navigate("/app/jobs/new")}
           style={{ padding: "3px 20px 3px 14px", marginRight: "20px" }}
         >
           + New Job
@@ -466,8 +442,8 @@ function JobList({
             <JobCard
               key={job.id}
               job={job}
-              onClick={() => navigate(`/jobs/${job.id}`)}
-              onEdit={() => navigate(`/jobs/${job.id}/edit`)}
+              onClick={() => navigate(`/app/jobs/${job.id}`)}
+              onEdit={() => navigate(`/app/jobs/${job.id}/edit`)}
               onToggle={() => toggleJob(job)}
               onDelete={() => deleteJob(job)}
               draggable={canDrag}
@@ -482,32 +458,6 @@ function JobList({
         </div>
       )}
     </>
-  );
-}
-
-function Header() {
-  return (
-    <div
-      style={{
-        background: "var(--bg-1)",
-        borderBottom: "1px solid var(--border)",
-        padding: "14px 20px",
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontWeight: 700,
-          fontSize: 20,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        <span style={{ color: "var(--accent)" }}>⬡</span> croniq
-      </span>
-    </div>
   );
 }
 
@@ -662,7 +612,7 @@ function JobCard({
               color: "var(--text-2)",
               fontFamily: "var(--font-mono)",
               marginBottom: 10,
-              maxHeight: "3.6em", // ~3 lines
+              maxHeight: "3.6em",
               overflow: "hidden",
               flex: "0 0 auto",
             }}

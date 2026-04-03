@@ -1,5 +1,5 @@
 import cron, { type ScheduledTask } from 'node-cron';
-import { getJob } from '../db.js';
+import { getJob, listJobs } from '../db.js';
 import { runJob } from '../runner.js';
 
 const activeTasks = new Map<string, ScheduledTask>();
@@ -31,8 +31,7 @@ export function unscheduleJob(jobId: string): void {
 }
 
 export function initScheduler(): void {
-  const { listJobs } = require('../db.js');
-  const jobs = listJobs() as Array<{ id: string; schedule: string; status: string }>;
+  const jobs = listJobs();
   for (const job of jobs) {
     if (job.status === 'active') scheduleJob(job);
   }

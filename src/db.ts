@@ -351,7 +351,7 @@ export function getJob(id: string): Job | undefined {
   return row ? toJob(row) : undefined;
 }
 
-export function createJob(input: Omit<Job, 'id' | 'createdAt' | 'updatedAt'>): Job {
+export function createJob(input: Omit<Job, 'id' | 'status' | 'lastRunAt' | 'nextRunAt' | 'sortOrder' | 'createdAt' | 'updatedAt'>): Job {
   const now = new Date().toISOString();
   const id = uuidv4();
   const { max_order } = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as max_order FROM jobs').get() as { max_order: number };

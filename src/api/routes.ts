@@ -103,7 +103,7 @@ const UpdateJobSchema = z.object({
   jobPrompt: z.string().optional(),
   jobParams: z.record(z.string()).optional(),
   notifyOnChange: z.boolean().optional(),
-  webhookUrl: z.string().url().optional().nullable(),
+  webhookUrl: z.string().url().optional(),
   retries: z.number().int().min(0).max(5).optional(),
   timeoutMs: z.number().int().min(1000).max(300000).optional(),
 });
@@ -186,7 +186,7 @@ apiRouter.post('/jobs/:id/resume', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   setJobStatus(req.params.id, 'active');
-  scheduleJob({ ...job, status: 'active' });
+  scheduleJob(job);
   res.json({ data: getJob(req.params.id) });
 });
 

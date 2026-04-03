@@ -1,6 +1,7 @@
 {
   "name": "croniq",
   "version": "1.0.0",
+  "type": "module",
   "description": "General-purpose scheduled data collection and monitoring platform",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:ui\"",
@@ -8,8 +9,8 @@
     "dev:ui": "cd ui && npm run dev",
     "build": "tsc && cd ui && npm run build",
     "start": "node dist/server.js",
-    "test": "node ./node_modules/.bin/jest",
-    "test:watch": "node ./node_modules/.bin/jest --watch",
+    "test": "node ./node_modules/.bin/jest --config jest.config.cjs",
+    "test:watch": "node ./node_modules/.bin/jest --config jest.config.cjs --watch",
     "db:export": "tsx scripts/export.ts",
     "db:import": "tsx scripts/import.ts",
     "db:seed": "tsx scripts/seed.ts"

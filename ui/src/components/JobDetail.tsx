@@ -1,5 +1,5 @@
 import { format, formatDistanceToNow } from "date-fns";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, type Job, type Run } from "../api";
@@ -11,6 +11,24 @@ function runStatusVariant(s: string): 'success' | 'danger' | 'warning' | 'accent
   if (s === 'skipped') return 'warning';
   if (s === 'collecting' || s === 'analyzing') return 'accent';
   return 'muted'; // pending
+}
+
+function AnalysisMarkdown({ content }: { content: string }) {
+  return (
+    <Markdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        a: (props: any) => (
+          <a href={props.href} target="_blank" rel="noopener noreferrer">
+            {props.children}
+          </a>
+        ),
+      }}
+    >
+      {content}
+    </Markdown>
+  );
 }
 
 function CollapsibleJson({ data }: { data: unknown }) {
@@ -421,7 +439,7 @@ export function JobDetail({
                           addSuffix: true,
                         })}
                       </span>
-                      {run.durationMs && (
+                      {run.durationMs ? (
                         <span
                           style={{
                             fontSize: 10,
@@ -431,7 +449,7 @@ export function JobDetail({
                         >
                           {run.durationMs}ms
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -466,11 +484,11 @@ export function JobDetail({
                 {selectedRun.changed && (
                   <Badge variant="changed">changed</Badge>
                 )}
-                {selectedRun.durationMs && (
+                {selectedRun.durationMs ? (
                   <span style={{ fontSize: 12, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
                     {selectedRun.durationMs}ms
                   </span>
-                )}
+                ) : null}
                 {selectedRun.contentHash && (
                   <span style={{ fontSize: 11, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>
                     #{selectedRun.contentHash.slice(0, 8)}
@@ -501,33 +519,18 @@ export function JobDetail({
               ) : (
                 <div>
                   {/* Analysis (editor output) */}
-                  {selectedRun.analysis && (
+                  {selectedRun.analysis ? (
                     <div style={{ marginBottom: 16 }}>
                       <div className="analysis-markdown">
-                        <Markdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            a: ({ href, children }) => (
-                              <a
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                {children}
-                              </a>
-                            ),
-                          }}
-                        >
-                          {selectedRun.analysis}
-                        </Markdown>
+                        <AnalysisMarkdown content={selectedRun.analysis} />
                       </div>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Raw data (collapsible) */}
-                  {selectedRun.rawData && (
+                  {selectedRun.rawData != null ? (
                     <CollapsibleJson data={selectedRun.rawData} />
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>

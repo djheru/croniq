@@ -35,7 +35,7 @@ export default function Auth() {
         body: JSON.stringify({ email }),
       });
       // Step 2: browser ceremony
-      const attResp = await startRegistration({ optionsJSON: optionsData as PublicKeyCredentialCreationOptionsJSON });
+      const attResp = await startRegistration({ optionsJSON: optionsData as unknown as PublicKeyCredentialCreationOptionsJSON });
       // Step 3: verify
       const result = await apiFetch<{ verified: boolean; recoveryCode?: string; error?: string }>('/api/auth/register/verify', {
         method: 'POST',
@@ -69,7 +69,7 @@ export default function Auth() {
         method: 'POST',
         body: JSON.stringify({ email }),
       });
-      const authResp = await startAuthentication({ optionsJSON: optionsData as PublicKeyCredentialRequestOptionsJSON });
+      const authResp = await startAuthentication({ optionsJSON: optionsData as unknown as PublicKeyCredentialRequestOptionsJSON });
       const result = await apiFetch<{ verified: boolean; error?: string }>('/api/auth/login/verify', {
         method: 'POST',
         body: JSON.stringify(authResp),

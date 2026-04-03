@@ -60,7 +60,7 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
     setError(null);
     try {
       const optionsData = await apiFetch<Record<string, unknown>>('/api/passkeys', { method: 'POST' });
-      const attResp = await startRegistration({ optionsJSON: optionsData as PublicKeyCredentialCreationOptionsJSON });
+      const attResp = await startRegistration({ optionsJSON: optionsData as unknown as PublicKeyCredentialCreationOptionsJSON });
       await apiFetch('/api/passkeys/verify', { method: 'POST', body: JSON.stringify(attResp) });
       await loadPasskeys();
     } catch (err) {

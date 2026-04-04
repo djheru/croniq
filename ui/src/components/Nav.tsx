@@ -34,7 +34,7 @@ export default function Nav({ passkeyManagerOpen, setPasskeyManagerOpen }: NavPr
             onClick={() => setDropdownOpen(!dropdownOpen)}
             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-1)', cursor: 'pointer', padding: '6px 12px', fontSize: 13, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <span style={{ fontSize: 14 }}>◉</span>
+            <span style={{ fontSize: 14, color: 'var(--success)' }}>◉</span>
             {user?.email}
             <span style={{ fontSize: 10 }}>▾</span>
           </button>

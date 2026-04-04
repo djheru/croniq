@@ -41,6 +41,75 @@ Each stage reads its model ID from an environment variable with a sensible defau
 
 ---
 
+## Authentication
+
+Croniq uses **passwordless WebAuthn authentication** (passkeys) for secure, phishing-resistant access.
+
+### Features
+
+- **Passkey-based login** — Touch ID, Face ID, Windows Hello, or hardware security keys
+- **Multi-device passkeys** — iCloud Keychain, Google Password Manager sync across devices
+- **Recovery codes** — One-time use backup codes for account recovery
+- **Passkey management** — Rename, delete, and add multiple passkeys per account
+- **No passwords** — No password storage, no password resets, no credential stuffing attacks
+
+### First-Time Setup
+
+On first launch, Croniq will prompt you to create an account:
+
+1. Enter your email address
+2. Follow your browser's passkey creation flow (Touch ID, Face ID, etc.)
+3. **Save your recovery code** — This is your only backup if you lose access to your passkey
+
+### Adding a New Device
+
+To register a passkey on a new device (work laptop, phone, etc.) that doesn't share your passkey ecosystem:
+
+**On your existing device:**
+1. Log in to Croniq
+2. Open "Manage Passkeys" from the navigation menu
+3. Click "📱 Generate code for new device"
+4. A 6-digit code will be displayed (valid for 5 minutes)
+
+**On your new device:**
+1. Navigate to Croniq registration page
+2. Enter your email address
+3. Enter the 6-digit device code
+4. Complete the passkey registration flow
+
+This ensures only someone with access to an existing authenticated device can add new passkeys to your account.
+
+### Production Configuration
+
+For production deployment, configure WebAuthn settings in `.env`:
+
+```bash
+RP_ID=croniq.local              # Your domain (must match the URL hostname)
+ORIGIN=http://croniq.local      # Full origin URL
+NODE_ENV=production             # Enables secure cookies
+CORS_ORIGIN=https://croniq.local # Match your production URL scheme
+```
+
+**Important:** The `RP_ID` must match the hostname users access the app from. If using nginx with a custom domain, set `RP_ID` to that domain.
+
+### Recovery Code Usage
+
+If you lose access to all your passkeys:
+
+1. Click "Use recovery code" on the login page
+2. Enter your email and recovery code
+3. You'll be logged in and issued a **new recovery code** (save it!)
+4. Add new passkeys in the passkey manager
+
+### Security Notes
+
+- Sessions expire after 30 days of inactivity
+- CSRF protection on all state-changing requests
+- Rate limiting on authentication endpoints (10 requests/minute)
+- Audit log for all authentication events (stored in SQLite)
+
+---
+
 ## Quick Start
 
 ### 1. Install dependencies
@@ -314,15 +383,35 @@ The AI agent compares against previous runs to detect trends like memory leaks, 
 
 ## Environment Variables
 
-| Variable              | Default                                       | Description               |
-| --------------------- | --------------------------------------------- | ------------------------- |
-| `PORT`                | `3001`                                        | HTTP server port          |
-| `DATA_DIR`            | `./data`                                      | SQLite database directory |
-| `AWS_REGION`          | `us-east-1`                                   | AWS region for Bedrock    |
-| `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Collector stage model     |
-| `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Editor stage model        |
+Create a `.env` file in the project root (see `.env.example` for template):
 
-AWS Bedrock credentials are required. Configure via standard AWS credential chain (`~/.aws/credentials`, environment variables, or IAM role). See the IAM Roles Anywhere section below for keyless auth on the Pi.
+| Variable              | Default                                       | Description                        |
+| --------------------- | --------------------------------------------- | ---------------------------------- |
+| `PORT`                | `3001`                                        | HTTP server port                   |
+| `DATA_DIR`            | `./data`                                      | SQLite database directory          |
+| `SESSION_SECRET`      | _(required)_                                  | Secret for session encryption      |
+| `CORS_ORIGIN`         | `http://localhost:5173` (dev)                 | CORS allowed origin                |
+| `NODE_ENV`            | `development`                                 | Environment mode                   |
+| `RP_ID`               | `localhost`                                   | WebAuthn Relying Party ID          |
+| `ORIGIN`              | `http://localhost:5173`                       | WebAuthn origin URL                |
+| `AWS_REGION`          | `us-east-1`                                   | AWS region for Bedrock             |
+| `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Collector stage model              |
+| `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Editor stage model                 |
+
+### Required Environment Variables
+
+**`SESSION_SECRET`** — Required for Express session encryption. Generate a secure random value:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### AWS Credentials
+
+AWS Bedrock credentials are required for the AI pipeline. Configure via:
+- Standard AWS credential chain (`~/.aws/credentials`, environment variables)
+- IAM role (EC2/ECS)
+- IAM Roles Anywhere (recommended for Pi — see below for keyless auth setup)
 
 ---
 
@@ -560,30 +649,89 @@ ssh kali "chmod 600 ~/.aws/pi.key && pm2 restart croniq"
 
 ---
 
+## Tech Stack
+
+### Backend
+
+| Layer                | Technology                                      |
+| -------------------- | ----------------------------------------------- |
+| **Runtime**          | Node.js 22, TypeScript 5                        |
+| **Framework**        | Express 4                                       |
+| **Authentication**   | WebAuthn (SimpleWebAuthn), Express Session      |
+| **Security**         | CSRF protection (csrf-csrf), rate limiting      |
+| **AI Pipeline**      | LangChain.js, AWS Bedrock (Claude Haiku 4.5)    |
+| **Scheduling**       | node-cron                                       |
+| **Database**         | SQLite (better-sqlite3, WAL mode)               |
+| **Scraping**         | cheerio (static HTML), Playwright (JS-rendered) |
+| **HTTP Client**      | native fetch                                    |
+| **Feed Parsing**     | rss-parser                                      |
+| **Validation**       | Zod                                             |
+| **Process Manager**  | PM2 (production)                                |
+
+### Frontend
+
+| Layer           | Technology                                |
+| --------------- | ----------------------------------------- |
+| **Framework**   | React 18                                  |
+| **Build Tool**  | Vite 5                                    |
+| **Styling**     | Tailwind CSS v3 (utility-first)           |
+| **Icons**       | lucide-react                              |
+| **Date/Time**   | date-fns                                  |
+| **WebAuthn**    | @simplewebauthn/browser                   |
+| **Fonts**       | Google Fonts (Geist Mono + custom pairing) |
+
+### Architecture Patterns
+
+- **Hexagonal Architecture** — Business logic independent of infrastructure
+- **Domain-Driven Design** — Clear bounded contexts (auth, jobs, agents)
+- **Type Safety** — Full TypeScript coverage, Zod runtime validation
+- **Function-Based** — Pure functions over classes where possible
+- **Event-Driven** — Agent pipeline with sequential stage execution
+- **Multi-source** — Parallel data collection with fault tolerance (Promise.allSettled)
+
+---
+
 ## Project Structure
 
 ```text
 croniq/
 ├── src/
-│   ├── server.ts              # Express entry point
+│   ├── server.ts              # Express entry point, CSRF, session, rate limiting
 │   ├── types/index.ts         # Shared TypeScript types
-│   ├── db/                    # SQLite schema + queries (jobs, runs, run_stages)
+│   ├── db.ts                  # SQLite connection, migrations, query functions
+│   ├── auth/
+│   │   └── routes.ts          # WebAuthn registration, login, recovery, passkey mgmt
 │   ├── agents/
-│   │   ├── pipeline.ts        # Pipeline orchestrator (2 stages)
-│   │   ├── collector.ts       # Stage 1: data collection agent
-│   │   ├── editor.ts          # Stage 2: report writing agent
-│   │   ├── prompts.ts         # System prompt factories
+│   │   ├── pipeline.ts        # Pipeline orchestrator (2 stages sequentially)
+│   │   ├── collector.ts       # Stage 1: data collection agent factory
+│   │   ├── editor.ts          # Stage 2: report writing agent factory
+│   │   ├── prompts.ts         # System prompt factories for all agents
 │   │   ├── types.ts           # Pipeline types + Zod schemas
-│   │   └── tools/             # LangChain tools (scraping, API, RSS, GraphQL)
-│   ├── jobs/                  # Scheduler (node-cron) + runner
-│   └── api/                   # Express routes + Zod validation
-├── ui/                        # React + Vite dashboard
+│   │   └── tools/             # LangChain tools (html, browser, api, rss, graphql)
+│   ├── scheduler/
+│   │   └── index.ts           # node-cron job management
+│   ├── runner/
+│   │   └── index.ts           # Pipeline executor, run recording
+│   └── api/
+│       └── routes.ts          # Express routes + Zod validation (jobs, runs, stats)
+├── ui/
+│   ├── src/
+│   │   ├── main.tsx           # React entry point
+│   │   ├── App.tsx            # Main app, routing, job list
+│   │   ├── api.ts             # API client + shared types
+│   │   ├── auth/              # Login, register, recover pages
+│   │   └── components/        # JobForm, JobDetail, PasskeyManager, Nav, UI kit
+│   ├── index.html
+│   ├── vite.config.ts
+│   ├── tailwind.config.ts
+│   └── package.json
 ├── scripts/
 │   ├── seed.ts                # Default example jobs with prompts
 │   ├── export.ts              # Export jobs to timestamped backup
 │   └── import.ts              # Import most recent backup
-├── backups/                   # Versioned job configuration backups
-├── data/                      # SQLite DB (auto-created)
+├── backups/                   # Versioned job configuration backups (git-tracked)
+├── data/                      # SQLite DB (auto-created, .gitignored)
+├── .env.example               # Environment variable template
 ├── .nvmrc                     # Pins Node 22
 └── README.md
 ```

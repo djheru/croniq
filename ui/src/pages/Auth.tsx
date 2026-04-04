@@ -13,6 +13,7 @@ export default function Auth() {
   const { refresh } = useAuth();
   const [tab, setTab] = useState<Tab>('login');
   const [email, setEmail] = useState('');
+  const [deviceCode, setDeviceCode] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export default function Auth() {
       // Step 1: get options
       const optionsData = await apiFetch<Record<string, unknown>>('/api/auth/register/options', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, deviceCode: deviceCode || undefined }),
       });
       // Step 2: browser ceremony
       const attResp = await startRegistration({ optionsJSON: optionsData as unknown as PublicKeyCredentialCreationOptionsJSON });
@@ -261,6 +262,22 @@ export default function Auth() {
                       placeholder="you@example.com"
                       style={{ width: '100%', fontSize: 14, padding: '10px 14px', boxSizing: 'border-box' }}
                     />
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'block', fontSize: 13, color: 'var(--text-1)', marginBottom: 6, fontFamily: 'var(--font-mono)' }}>
+                      Device Code <span style={{ color: 'var(--text-2)', fontWeight: 400 }}>(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={deviceCode}
+                      onChange={(e) => setDeviceCode(e.target.value)}
+                      placeholder="123456"
+                      maxLength={6}
+                      style={{ width: '100%', fontSize: 14, padding: '10px 14px', boxSizing: 'border-box', fontFamily: 'var(--font-mono)', letterSpacing: 2 }}
+                    />
+                    <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+                      Required if adding a new device to an existing account
+                    </div>
                   </div>
                   {error && (
                     <div style={{ background: 'var(--danger-dim)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 16, fontSize: 13, color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>

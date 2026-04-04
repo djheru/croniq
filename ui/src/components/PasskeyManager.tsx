@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 import { Modal } from './ui';
-import { fetchPasskeys, renamePasskeyApi, deletePasskeyApi, apiFetch, regenerateRecoveryCode, type AuthPasskey } from '../api';
+import { fetchPasskeys, renamePasskeyApi, deletePasskeyApi, apiFetch, regenerateRecoveryCode, generateDeviceCode, getActiveDeviceCode, type AuthPasskey } from '../api';
 import { format } from 'date-fns';
 
 interface PasskeyManagerProps {
@@ -19,6 +19,10 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
   const [regeneratedCode, setRegeneratedCode] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [deviceCode, setDeviceCode] = useState<string | null>(null);
+  const [deviceCodeExpiry, setDeviceCodeExpiry] = useState<string | null>(null);
+  const [generatingDeviceCode, setGeneratingDeviceCode] = useState(false);
+  const [deviceCodeCopied, setDeviceCodeCopied] = useState(false);
 
   const loadPasskeys = useCallback(async () => {
     try {
@@ -28,6 +32,7 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
       setPasskeys(keys);
     } catch (err) {
       setError((err as Error).message);
+      setPasskeys([]); // Set empty array on error to prevent undefined access
     } finally {
       setLoadingPasskeys(false);
     }
@@ -92,6 +97,42 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
     setTimeout(() => setCodeCopied(false), 2000);
   }
 
+  async function handleGenerateDeviceCode() {
+    setGeneratingDeviceCode(true);
+    setError(null);
+    try {
+      const result = await generateDeviceCode();
+      setDeviceCode(result.code);
+      setDeviceCodeExpiry(result.expiresAt);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGeneratingDeviceCode(false);
+    }
+  }
+
+  async function copyDeviceCode() {
+    if (!deviceCode) return;
+    await navigator.clipboard.writeText(deviceCode);
+    setDeviceCodeCopied(true);
+    setTimeout(() => setDeviceCodeCopied(false), 2000);
+  }
+
+  useEffect(() => {
+    async function checkActiveCode() {
+      try {
+        const result = await getActiveDeviceCode();
+        if (result.code) {
+          setDeviceCode(result.code);
+          setDeviceCodeExpiry(result.expiresAt);
+        }
+      } catch {
+        // Ignore errors
+      }
+    }
+    checkActiveCode();
+  }, []);
+
   function formatDate(dateStr: string | null) {
     if (!dateStr) return 'never';
     try {
@@ -114,7 +155,7 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
         <div style={{ marginBottom: 20 }}>
           {loadingPasskeys ? (
             <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-1)', fontSize: 13 }}>Loading…</div>
-          ) : passkeys.length === 0 ? (
+          ) : !passkeys || passkeys.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-2)', fontSize: 13 }}>No passkeys found.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -149,9 +190,9 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
                     </div>
                     <button
                       onClick={() => handleDelete(pk.id)}
-                      disabled={passkeys.length <= 1}
-                      style={{ background: 'none', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 'var(--radius)', color: passkeys.length <= 1 ? 'var(--text-2)' : 'var(--danger)', cursor: passkeys.length <= 1 ? 'not-allowed' : 'pointer', padding: '4px 10px', fontSize: 12, flexShrink: 0 }}
-                      title={passkeys.length <= 1 ? 'Cannot delete the only passkey' : 'Delete passkey'}
+                      disabled={(passkeys?.length ?? 0) <= 1}
+                      style={{ background: 'none', border: '1px solid rgba(248,81,73,0.3)', borderRadius: 'var(--radius)', color: (passkeys?.length ?? 0) <= 1 ? 'var(--text-2)' : 'var(--danger)', cursor: (passkeys?.length ?? 0) <= 1 ? 'not-allowed' : 'pointer', padding: '4px 10px', fontSize: 12, flexShrink: 0 }}
+                      title={(passkeys?.length ?? 0) <= 1 ? 'Cannot delete the only passkey' : 'Delete passkey'}
                     >
                       Delete
                     </button>
@@ -176,6 +217,45 @@ export default function PasskeyManager({ onClose }: PasskeyManagerProps) {
           >
             {addingPasskey ? '⏳ Adding passkey…' : '+ Add another passkey'}
           </button>
+
+          <div style={{ height: 1, background: 'var(--border)' }} />
+
+          {/* Device code section */}
+          <div>
+            {deviceCode ? (
+              <div style={{ background: 'var(--bg-3)', border: '1px solid var(--border-bright)', borderRadius: 'var(--radius)', padding: '16px' }}>
+                <div style={{ fontSize: 13, color: 'var(--text-1)', marginBottom: 8, fontWeight: 500 }}>🔐 Device code for new device</div>
+                <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 12 }}>
+                  Use this code on your new device during registration. Expires in 5 minutes.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <code style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 600, color: 'var(--accent)', flex: 1, letterSpacing: 2 }}>
+                    {deviceCode}
+                  </code>
+                  <button
+                    onClick={copyDeviceCode}
+                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', color: deviceCodeCopied ? 'var(--success)' : 'var(--text-1)', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-mono)', flexShrink: 0 }}
+                  >
+                    {deviceCodeCopied ? '✓ Copied' : 'Copy'}
+                  </button>
+                </div>
+                <button
+                  onClick={() => { setDeviceCode(null); setDeviceCodeExpiry(null); }}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-1)', cursor: 'pointer', padding: '8px 14px', fontSize: 13, width: '100%' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleGenerateDeviceCode}
+                disabled={generatingDeviceCode}
+                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-1)', cursor: generatingDeviceCode ? 'not-allowed' : 'pointer', padding: '10px 16px', fontSize: 13, textAlign: 'left', width: '100%', opacity: generatingDeviceCode ? 0.7 : 1 }}
+              >
+                {generatingDeviceCode ? 'Generating…' : '📱 Generate code for new device'}
+              </button>
+            )}
+          </div>
 
           <div style={{ height: 1, background: 'var(--border)' }} />
 

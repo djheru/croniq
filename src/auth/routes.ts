@@ -12,6 +12,7 @@ import {
   getPasskeysByUser, getPasskeyById, savePasskey, updatePasskeyCounter,
   renamePasskey, deletePasskey, storeChallenge, consumeChallenge,
   setRecoveryCodeHash, logAuditEvent, hasUsers,
+  createDeviceCode, consumeDeviceCode, getActiveDeviceCode,
 } from '../db.js';
 
 const RP_NAME = 'Croniq';
@@ -33,13 +34,29 @@ authRouter.get('/api/auth/status', (req, res) => {
 
 // ===== REGISTRATION =====
 authRouter.post('/api/auth/register/options', authLimiter, async (req, res) => {
-  const { email } = req.body;
+  const { email, deviceCode } = req.body;
   if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Valid email required' });
   const normalizedEmail = email.toLowerCase().trim();
+
   let user = findUserByEmail(normalizedEmail);
-  if (!user) {
+
+  // If user exists and device code is provided, validate it
+  if (user && deviceCode) {
+    const userId = consumeDeviceCode(deviceCode);
+    if (!userId || userId !== user.id) {
+      return res.status(400).json({ error: 'Invalid or expired device code' });
+    }
+    // Device code valid - allow registration
+  } else if (user) {
+    // User exists but no device code provided
+    return res.status(400).json({
+      error: 'Account exists. Provide a device code from your existing device, or use a different email.'
+    });
+  } else {
+    // No existing user - create new account
     user = createUser(randomUUID(), normalizedEmail, randomBytes(32));
   }
+
   const existingPasskeys = getPasskeysByUser(user.id);
   const options = await generateRegistrationOptions({
     rpName: RP_NAME, rpID: RP_ID,
@@ -189,7 +206,9 @@ authRouter.get('/api/me', (req, res) => {
 // ===== PASSKEY MANAGEMENT =====
 authRouter.get('/api/passkeys', (req, res) => {
   const passkeys = getPasskeysByUser((req.session as any).userId);
-  res.json(passkeys.map(pk => ({ id: pk.id, label: pk.label, deviceType: pk.device_type, backedUp: pk.backed_up === 1, createdAt: pk.created_at, lastUsedAt: pk.last_used_at })));
+  res.json({
+    passkeys: passkeys.map(pk => ({ id: pk.id, label: pk.label, deviceType: pk.device_type, backedUp: pk.backed_up === 1, createdAt: pk.created_at, lastUsedAt: pk.last_used_at }))
+  });
 });
 
 authRouter.post('/api/passkeys', async (req, res) => {
@@ -249,4 +268,21 @@ authRouter.post('/api/passkeys/recovery-code/regenerate', async (req, res) => {
   setRecoveryCodeHash(userId, hash);
   logAuditEvent(userId, 'recovery_code_regenerated', '', getClientIp(req));
   res.json({ recoveryCode: newCode });
+});
+
+authRouter.post('/api/passkeys/device-code/generate', (req, res) => {
+  const userId = (req.session as any).userId;
+  // Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // Expires in 5 minutes
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  createDeviceCode(userId, code, expiresAt);
+  logAuditEvent(userId, 'device_code_generated', '', getClientIp(req));
+  res.json({ code, expiresAt });
+});
+
+authRouter.get('/api/passkeys/device-code/active', (req, res) => {
+  const userId = (req.session as any).userId;
+  const activeCode = getActiveDeviceCode(userId);
+  res.json({ code: activeCode?.code ?? null, expiresAt: activeCode?.expires_at ?? null });
 });

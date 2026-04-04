@@ -90,6 +90,14 @@ export async function regenerateRecoveryCode(): Promise<{ recoveryCode: string }
   return apiFetch('/api/passkeys/recovery-code/regenerate', { method: 'POST' });
 }
 
+export async function generateDeviceCode(): Promise<{ code: string; expiresAt: string }> {
+  return apiFetch('/api/passkeys/device-code/generate', { method: 'POST' });
+}
+
+export async function getActiveDeviceCode(): Promise<{ code: string | null; expiresAt: string | null }> {
+  return apiFetch('/api/passkeys/device-code/active');
+}
+
 // ─── Job / Run types ───────────────────────────────────────────────────────────
 export interface DataSource {
   name?: string;

@@ -163,6 +163,14 @@ export function initDb(): void {
       ip TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS device_codes (
+      code TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   // Runs migration (idempotency guard): upgrade existing runs tables that use old schema
@@ -337,6 +345,36 @@ export function consumeChallenge(challenge: string, purpose: 'registration' | 'a
 
 export function logAuditEvent(userId: string | null, event: string, detail: string, ip: string): void {
   db.prepare('INSERT INTO audit_log (user_id, event, detail, ip) VALUES (?, ?, ?, ?)').run(userId, event, detail, ip);
+}
+
+// ─── Auth: Device Codes ───────────────────────────────────────────────────────
+
+export interface DbDeviceCode {
+  code: string;
+  user_id: string;
+  created_at: string;
+  expires_at: string;
+  used: number;
+}
+
+export function createDeviceCode(userId: string, code: string, expiresAt: string): void {
+  // Clean up expired codes first
+  db.prepare("DELETE FROM device_codes WHERE expires_at < datetime('now')").run();
+  db.prepare('INSERT INTO device_codes (code, user_id, expires_at) VALUES (?, ?, ?)').run(code, userId, expiresAt);
+}
+
+export function consumeDeviceCode(code: string): string | null {
+  const consume = db.transaction(() => {
+    const row = db.prepare("SELECT * FROM device_codes WHERE code = ? AND used = 0 AND expires_at > datetime('now')").get(code) as DbDeviceCode | undefined;
+    if (!row) return null;
+    db.prepare('UPDATE device_codes SET used = 1 WHERE code = ?').run(code);
+    return row.user_id;
+  });
+  return consume() as string | null;
+}
+
+export function getActiveDeviceCode(userId: string): DbDeviceCode | null {
+  return db.prepare("SELECT * FROM device_codes WHERE user_id = ? AND used = 0 AND expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1").get(userId) as DbDeviceCode | null;
 }
 
 // ─── Jobs ─────────────────────────────────────────────────────────────────────

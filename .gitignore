@@ -8,6 +8,7 @@ data/
 ui/dist/
 .superpowers/
 .worktrees/
+.env
 
 # Backup files (auto-generated, don't commit)
 scripts/backup.json

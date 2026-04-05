@@ -84,6 +84,7 @@ export function initDb(): void {
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      description TEXT,
       schedule TEXT NOT NULL,
       collector_config TEXT NOT NULL DEFAULT '{}',
       output_format TEXT NOT NULL DEFAULT 'json',
@@ -172,6 +173,12 @@ export function initDb(): void {
       used INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  // Jobs migrations (idempotency guards)
+  const jobsCols = (db.pragma('table_info(jobs)') as Array<{ name: string }>).map(c => c.name);
+  if (!jobsCols.includes('description')) {
+    db.exec('ALTER TABLE jobs ADD COLUMN description TEXT');
+  }
 
   // Runs migration (idempotency guard): upgrade existing runs tables that use old schema
   const runsCols = (db.pragma('table_info(runs)') as Array<{ name: string }>).map(c => c.name);

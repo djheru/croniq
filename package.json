@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3",
+    "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13",
     "bcrypt": "^5",
     "better-sqlite3": "^9.4.3",

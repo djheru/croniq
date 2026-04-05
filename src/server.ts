@@ -10,7 +10,6 @@ import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
-import { initDb } from './db.js';
 import { initScheduler } from './scheduler/index.js';
 import { authRouter } from './auth/routes.js';
 import { apiRouter } from './api/routes.js';
@@ -72,6 +71,13 @@ app.use(session({
   },
 }));
 
+// Admin key bypass: loopback-only requests with matching SESSION_SECRET skip auth and CSRF
+const isAdminRequest = (req: express.Request): boolean => {
+  const key = req.headers['x-admin-key'];
+  const loopback = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+  return typeof key === 'string' && loopback && key === process.env.SESSION_SECRET;
+};
+
 const { generateToken, doubleCsrfProtection } = doubleCsrf({
   getSecret: () => process.env.SESSION_SECRET!,
   cookieName: '__csrf',
@@ -82,11 +88,7 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
     // Don't set domain - let browser infer it from the request origin
   },
   getTokenFromRequest: req => req.headers['x-csrf-token'] as string,
-  skipCsrfProtection: (req) => {
-    const adminKey = req.headers['x-admin-key'];
-    const isLoopback = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
-    return typeof adminKey === 'string' && isLoopback && adminKey === process.env.SESSION_SECRET;
-  },
+  skipCsrfProtection: isAdminRequest,
 });
 
 app.get('/api/csrf-token', (req, res) => res.json({ token: generateToken(req, res, true) }));
@@ -105,10 +107,7 @@ app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders:
 const PUBLIC_API_PATHS = ['/auth/', '/csrf-token', '/health'];
 app.use('/api', (req, res, next) => {
   if (PUBLIC_API_PATHS.some(p => req.path.startsWith(p))) return next();
-  // Admin key bypass: only valid from loopback (localhost scripts)
-  const adminKey = req.headers['x-admin-key'];
-  const isLoopback = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
-  if (adminKey && isLoopback && adminKey === process.env.SESSION_SECRET) return next();
+  if (isAdminRequest(req)) return next();
   if (!req.session.userId) {
     console.log('[auth] 401 Unauthorized - No session userId for:', req.method, req.path);
     console.log('[auth] Session ID:', req.sessionID);
@@ -130,6 +129,6 @@ if (IS_PROD) {
 }
 
 // --- Start ---
-initDb();
+// Note: initDb() is called automatically on db.ts module load; no need to call again here.
 initScheduler();
 app.listen(PORT, () => console.log(`✦ Croniq running on http://localhost:${PORT}`));

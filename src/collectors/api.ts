@@ -6,7 +6,7 @@ type ApiSourceConfig = { type: 'api'; url: string; method?: 'GET' | 'POST'; head
 function localhostAdminHeader(url: string): Record<string, string> {
   try {
     const { hostname } = new URL(url);
-    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '::ffff:127.0.0.1';
     if (isLocal && process.env.SESSION_SECRET) return { 'X-Admin-Key': process.env.SESSION_SECRET };
   } catch { /* invalid URL — no header */ }
   return {};

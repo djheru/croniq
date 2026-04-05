@@ -7,10 +7,14 @@
  *   npm run db:export backups/custom-name.json           # exports to custom file
  */
 
+import 'dotenv/config';
 import fs from "fs";
 import path from "path";
 
 const BASE = process.env.CRONIQ_URL ?? "http://localhost:3001/api";
+const ADMIN_KEY = process.env.SESSION_SECRET;
+if (!ADMIN_KEY) { console.error('[export] SESSION_SECRET env var is required'); process.exit(1); }
+const adminHeaders = { 'X-Admin-Key': ADMIN_KEY };
 
 async function exportJobs() {
   const outputFile = process.argv[2] ?? `backups/${Math.floor(Date.now() / 1000)}.json`;
@@ -19,7 +23,7 @@ async function exportJobs() {
   console.log(`Exporting jobs from ${BASE}...`);
 
   try {
-    const res = await fetch(`${BASE}/jobs`);
+    const res = await fetch(`${BASE}/jobs`, { headers: adminHeaders });
     if (!res.ok) {
       throw new Error(`Failed to fetch jobs: ${res.status} ${res.statusText}`);
     }

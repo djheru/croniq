@@ -11,7 +11,8 @@ import fs from "fs";
 import path from "path";
 
 const BASE = process.env.CRONIQ_URL ?? "http://localhost:3001/api";
-const ADMIN_KEY = process.env.SESSION_SECRET ?? '';
+const ADMIN_KEY = process.env.SESSION_SECRET;
+if (!ADMIN_KEY) { console.error('[seed] SESSION_SECRET env var is required'); process.exit(1); }
 const adminHeaders = { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY };
 
 const defaultJobs = [
@@ -292,14 +293,14 @@ async function seed() {
   console.log(`Clearing existing jobs from ${BASE}...`);
   const existing = await fetch(`${BASE}/jobs`, { headers: adminHeaders }).then((r) => r.json());
   const existingJobs: { id: string }[] = existing.data ?? existing ?? [];
-  for (const job of existingJobs) {
-    await fetch(`${BASE}/jobs/${job.id}`, { method: "DELETE", headers: adminHeaders });
-  }
+  await Promise.all(existingJobs.map(job =>
+    fetch(`${BASE}/jobs/${job.id}`, { method: "DELETE", headers: adminHeaders })
+  ));
   console.log(`  Cleared ${existingJobs.length} jobs.\n`);
 
   console.log(`Seeding jobs to ${BASE}...\n`);
 
-  for (const job of jobs) {
+  await Promise.allSettled(jobs.map(async (job) => {
     const res = await fetch(`${BASE}/jobs`, {
       method: "POST",
       headers: adminHeaders,
@@ -315,7 +316,7 @@ async function seed() {
       try { errMsg = JSON.parse(text).error ?? text; } catch { errMsg = `HTTP ${res.status} — ${text.slice(0, 120)}`; }
       console.error(`  ✗ ${job.name}:`, errMsg);
     }
-  }
+  }));
 
   console.log("\nDone.");
 }

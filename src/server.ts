@@ -66,7 +66,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: IS_PROD,
+    secure: 'auto',
     maxAge: 30 * 24 * 60 * 60 * 1000
     // Don't set domain - let browser infer it from the request origin
   },

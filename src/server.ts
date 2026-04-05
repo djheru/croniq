@@ -100,6 +100,10 @@ app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders:
 const PUBLIC_API_PATHS = ['/auth/', '/csrf-token', '/health'];
 app.use('/api', (req, res, next) => {
   if (PUBLIC_API_PATHS.some(p => req.path.startsWith(p))) return next();
+  // Admin key bypass: only valid from loopback (localhost scripts)
+  const adminKey = req.headers['x-admin-key'];
+  const isLoopback = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+  if (adminKey && isLoopback && adminKey === process.env.SESSION_SECRET) return next();
   if (!req.session.userId) {
     console.log('[auth] 401 Unauthorized - No session userId for:', req.method, req.path);
     console.log('[auth] Session ID:', req.sessionID);

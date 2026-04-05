@@ -6,10 +6,13 @@
  *   npm run db:seed backups/2026-03-18.json      # seed from exported backup
  */
 
+import 'dotenv/config';
 import fs from "fs";
 import path from "path";
 
 const BASE = process.env.CRONIQ_URL ?? "http://localhost:3001/api";
+const ADMIN_KEY = process.env.SESSION_SECRET ?? '';
+const adminHeaders = { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY };
 
 const defaultJobs = [
   {
@@ -287,18 +290,19 @@ async function seed() {
 
   // Clear existing jobs
   console.log(`Clearing existing jobs from ${BASE}...`);
-  const existing = await fetch(`${BASE}/jobs`).then((r) => r.json());
-  for (const job of existing.data ?? existing) {
-    await fetch(`${BASE}/jobs/${job.id}`, { method: "DELETE" });
+  const existing = await fetch(`${BASE}/jobs`, { headers: adminHeaders }).then((r) => r.json());
+  const existingJobs: { id: string }[] = existing.data ?? existing ?? [];
+  for (const job of existingJobs) {
+    await fetch(`${BASE}/jobs/${job.id}`, { method: "DELETE", headers: adminHeaders });
   }
-  console.log(`  Cleared ${(existing.data ?? existing).length} jobs.\n`);
+  console.log(`  Cleared ${existingJobs.length} jobs.\n`);
 
   console.log(`Seeding jobs to ${BASE}...\n`);
 
   for (const job of jobs) {
     const res = await fetch(`${BASE}/jobs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: adminHeaders,
       body: JSON.stringify(job),
     });
     const data = await res.json();

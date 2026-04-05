@@ -84,13 +84,14 @@ This ensures only someone with access to an existing authenticated device can ad
 For production deployment, configure WebAuthn settings in `.env`:
 
 ```bash
-RP_ID=croniq.local              # Your domain (must match the URL hostname)
-ORIGIN=http://croniq.local      # Full origin URL
-NODE_ENV=production             # Enables secure cookies
+RP_ID=croniq.local               # Your domain (must match the URL hostname)
+ORIGIN=https://croniq.local      # Full origin URL — must use https:// in production
 CORS_ORIGIN=https://croniq.local # Match your production URL scheme
 ```
 
-**Important:** The `RP_ID` must match the hostname users access the app from. If using nginx with a custom domain, set `RP_ID` to that domain.
+**Important:** The `RP_ID` must match the hostname users access the app from. If using nginx with a custom domain, set `RP_ID` to that domain. `ORIGIN` must match the scheme the browser uses — `https://` when behind TLS.
+
+> **Note:** `NODE_ENV=production` is set automatically by `pm2.config.cjs` — you do not need it in `.env`.
 
 ### Recovery Code Usage
 
@@ -103,6 +104,7 @@ If you lose access to all your passkeys:
 
 ### Security Notes
 
+- Sessions are stored in SQLite (`data/sessions.db`) and survive server restarts
 - Sessions expire after 30 days of inactivity
 - CSRF protection on all state-changing requests
 - Rate limiting on authentication endpoints (10 requests/minute)
@@ -142,8 +144,10 @@ npm run dev
 With the server running:
 
 ```bash
-npx tsx scripts/seed.ts
+npm run db:seed
 ```
+
+The script authenticates using `SESSION_SECRET` from your `.env` file — make sure it's set before running.
 
 Creates 9 example jobs: multi-source news aggregation (Guardian, WaPo, NPR), crypto prices, weather monitoring (Gilbert AZ + Garden MI), Hacker News, AWS/GitHub status, Anthropic blog scraping, Croniq pipeline stats, and Pi system health — each with tailored agent prompts and multi-source collection where appropriate.
 
@@ -161,23 +165,47 @@ npm run build          # compiles TypeScript + Vite
 
 ```bash
 sudo npm install -g pm2
-pm2 start dist/server.js --name croniq
+pm2 start pm2.config.cjs
 pm2 startup && pm2 save
 ```
 
-The app serves the React build at `/` and the API at `/api`.
+`pm2.config.cjs` reads your `.env` file, sets `NODE_ENV=production`, and starts the server. The app serves the React build at `/` and the API at `/api`.
 
-### Nginx reverse proxy (optional)
+### Nginx reverse proxy
 
 ```nginx
+# Redirect HTTP → HTTPS
 server {
     listen 80;
-    server_name croniq.local;
+    server_name croniq.local 192.168.0.45;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name croniq.local 192.168.0.45;
+
+    ssl_certificate     /etc/ssl/croniq/cert.pem;
+    ssl_certificate_key /etc/ssl/croniq/key.pem;
+
     location / {
         proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;   # required — tells Express the connection is HTTPS
     }
 }
+```
+
+> **`X-Forwarded-Proto` is required.** Express uses it (via `trust proxy`) to set `req.secure = true`. Without it, `express-session` will not send the `Set-Cookie` header for secure cookies, causing all logins to fail with 401 immediately after the passkey ceremony completes.
+
+After editing nginx config:
+```bash
+sudo nginx -t && sudo nginx -s reload
 ```
 
 ---

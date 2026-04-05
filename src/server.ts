@@ -59,8 +59,8 @@ app.use(session({
     httpOnly: true,
     sameSite: 'lax',
     secure: IS_PROD,
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-    domain: IS_PROD ? 'croniq.local' : undefined
+    maxAge: 30 * 24 * 60 * 60 * 1000
+    // Don't set domain - let browser infer it from the request origin
   },
 }));
 
@@ -70,8 +70,8 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
   cookieOptions: {
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: IS_PROD,
-    domain: IS_PROD ? 'croniq.local' : undefined
+    secure: IS_PROD
+    // Don't set domain - let browser infer it from the request origin
   },
   getTokenFromRequest: req => req.headers['x-csrf-token'] as string,
 });

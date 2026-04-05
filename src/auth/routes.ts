@@ -99,7 +99,16 @@ authRouter.post('/api/auth/register/verify', authLimiter, async (req, res) => {
     }
 
     (req.session as any).userId = user.id;
-    res.json({ verified: true, recoveryCode });
+
+    // Explicitly save the session
+    req.session.save((err) => {
+      if (err) {
+        console.error('[auth] Registration session save error:', err);
+        return res.status(500).json({ verified: false, error: 'Session error' });
+      }
+      console.log('[auth] Registration successful, session saved - ID:', req.sessionID, 'userId:', user.id);
+      res.json({ verified: true, recoveryCode });
+    });
   } catch (err) {
     logAuditEvent(null, 'registration.error', String(err), getClientIp(req));
     return res.status(400).json({ verified: false, error: err instanceof Error ? err.message : 'Registration failed' });
@@ -148,8 +157,17 @@ authRouter.post('/api/auth/login/verify', authLimiter, async (req, res) => {
     if (!verification.verified) return res.status(400).json({ verified: false });
     updatePasskeyCounter(passkey.id, verification.authenticationInfo.newCounter, new Date().toISOString());
     (req.session as any).userId = user.id;
-    logAuditEvent(user.id, 'logged_in', `passkey: ${passkey.id.substring(0, 16)}…`, getClientIp(req));
-    res.json({ verified: true });
+
+    // Explicitly save the session
+    req.session.save((err) => {
+      if (err) {
+        console.error('[auth] Session save error:', err);
+        return res.status(500).json({ verified: false, error: 'Session error' });
+      }
+      console.log('[auth] Login successful, session saved - ID:', req.sessionID, 'userId:', user.id);
+      logAuditEvent(user.id, 'logged_in', `passkey: ${passkey.id.substring(0, 16)}…`, getClientIp(req));
+      res.json({ verified: true });
+    });
   } catch (err) {
     return res.status(400).json({ verified: false, error: err instanceof Error ? err.message : 'Authentication failed' });
   }
@@ -169,8 +187,16 @@ authRouter.post('/api/auth/recover', authLimiter, async (req, res) => {
     const newHash = await bcrypt.hash(newCode, 10);
     setRecoveryCodeHash(user.id, newHash);
     (req.session as any).userId = user.id;
-    logAuditEvent(user.id, 'recovered', '', getClientIp(req));
-    res.json({ ok: true, newRecoveryCode: newCode });
+
+    // Explicitly save the session
+    req.session.save((err) => {
+      if (err) {
+        console.error('[auth] Recovery session save error:', err);
+        return res.status(500).json({ error: 'Session error' });
+      }
+      logAuditEvent(user.id, 'recovered', '', getClientIp(req));
+      res.json({ ok: true, newRecoveryCode: newCode });
+    });
   } catch (err) {
     logAuditEvent(null, 'recovery.error', String(err), getClientIp(req));
     return res.status(400).json({ error: 'Recovery failed.' });
@@ -190,6 +216,7 @@ authRouter.post('/api/auth/logout', (req, res) => {
 
 authRouter.get('/api/me', (req, res) => {
   const userId = (req.session as any).userId;
+  console.log('[auth] /me endpoint - session ID:', req.sessionID, 'userId:', userId, 'session:', req.session);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
   const user = findUserById(userId);
   if (!user) return res.status(404).json({ error: 'User not found' });

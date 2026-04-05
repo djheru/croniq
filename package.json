@@ -20,6 +20,7 @@
     "@simplewebauthn/server": "^13",
     "bcrypt": "^5",
     "better-sqlite3": "^9.4.3",
+    "better-sqlite3-session-store": "^0.1.0",
     "cheerio": "^1.0.0",
     "cookie-parser": "^1",
     "cors": "^2.8.5",

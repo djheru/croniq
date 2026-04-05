@@ -3,10 +3,13 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
+import SqliteStore from 'better-sqlite3-session-store';
+import Database from 'better-sqlite3';
 import { doubleCsrf } from 'csrf-csrf';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import { initDb } from './db.js';
 import { initScheduler } from './scheduler/index.js';
 import { authRouter } from './auth/routes.js';
@@ -29,6 +32,12 @@ const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const IS_PROD = process.env.NODE_ENV === 'production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? (IS_PROD ? 'https://croniq.local' : 'http://localhost:5173');
+const DATA_DIR = process.env.DATA_DIR ?? './data';
+
+// --- Session Store Setup ---
+const SessionStore = SqliteStore(session);
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const sessionDb = new Database(path.join(DATA_DIR, 'sessions.db'));
 
 // --- Middleware ---
 app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
@@ -36,6 +45,13 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser(process.env.SESSION_SECRET));
 
 app.use(session({
+  store: new SessionStore({
+    client: sessionDb,
+    expired: {
+      clear: true,
+      intervalMs: 15 * 60 * 1000 // Clean up expired sessions every 15 minutes
+    }
+  }),
   secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,

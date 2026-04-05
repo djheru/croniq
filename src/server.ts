@@ -77,7 +77,13 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
 });
 
 app.get('/api/csrf-token', (req, res) => res.json({ token: generateToken(req, res, true) }));
-app.use(doubleCsrfProtection);
+
+// Apply CSRF protection to all routes except auth endpoints
+const CSRF_EXEMPT_PATHS = ['/api/auth/', '/api/csrf-token', '/api/health'];
+app.use((req, res, next) => {
+  if (CSRF_EXEMPT_PATHS.some(p => req.path.startsWith(p))) return next();
+  doubleCsrfProtection(req, res, next);
+});
 
 // --- Rate limiting (global) ---
 app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false }));

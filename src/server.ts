@@ -29,6 +29,10 @@ if (!process.env.SESSION_SECRET) {
 }
 
 const app = express();
+
+// Trust proxy - required for HTTPS behind nginx/reverse proxy
+app.set('trust proxy', 1);
+
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const IS_PROD = process.env.NODE_ENV === 'production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? (IS_PROD ? 'https://croniq.local' : 'http://localhost:5173');
@@ -40,7 +44,11 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const sessionDb = new Database(path.join(DATA_DIR, 'sessions.db'));
 
 // --- Middleware ---
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: CORS_ORIGIN,
+  credentials: true,
+  exposedHeaders: ['set-cookie']
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser(process.env.SESSION_SECRET));
 

@@ -98,16 +98,21 @@ authRouter.post('/api/auth/register/verify', authLimiter, async (req, res) => {
       setRecoveryCodeHash(user.id, hash);
     }
 
-    (req.session as any).userId = user.id;
-
-    // Explicitly save the session
-    req.session.save((err) => {
+    // Regenerate session to ensure Set-Cookie is sent
+    req.session.regenerate((err) => {
       if (err) {
-        console.error('[auth] Registration session save error:', err);
+        console.error('[auth] Registration session regenerate error:', err);
         return res.status(500).json({ verified: false, error: 'Session error' });
       }
-      console.log('[auth] Registration successful, session saved - ID:', req.sessionID, 'userId:', user.id);
-      res.json({ verified: true, recoveryCode });
+      (req.session as any).userId = user.id;
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('[auth] Registration session save error:', saveErr);
+          return res.status(500).json({ verified: false, error: 'Session error' });
+        }
+        console.log('[auth] Registration successful, session saved - ID:', req.sessionID, 'userId:', user.id);
+        res.json({ verified: true, recoveryCode });
+      });
     });
   } catch (err) {
     logAuditEvent(null, 'registration.error', String(err), getClientIp(req));
@@ -156,17 +161,24 @@ authRouter.post('/api/auth/login/verify', authLimiter, async (req, res) => {
     });
     if (!verification.verified) return res.status(400).json({ verified: false });
     updatePasskeyCounter(passkey.id, verification.authenticationInfo.newCounter, new Date().toISOString());
-    (req.session as any).userId = user.id;
 
-    // Explicitly save the session
-    req.session.save((err) => {
+    // Regenerate session to ensure Set-Cookie is sent
+    req.session.regenerate((err) => {
       if (err) {
-        console.error('[auth] Session save error:', err);
+        console.error('[auth] Session regenerate error:', err);
         return res.status(500).json({ verified: false, error: 'Session error' });
       }
-      console.log('[auth] Login successful, session saved - ID:', req.sessionID, 'userId:', user.id);
-      logAuditEvent(user.id, 'logged_in', `passkey: ${passkey.id.substring(0, 16)}…`, getClientIp(req));
-      res.json({ verified: true });
+      (req.session as any).userId = user.id;
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('[auth] Session save error:', saveErr);
+          return res.status(500).json({ verified: false, error: 'Session error' });
+        }
+        console.log('[auth] Login successful, session saved - ID:', req.sessionID, 'userId:', user.id);
+        console.log('[auth] Response headers will include:', res.getHeaders());
+        logAuditEvent(user.id, 'logged_in', `passkey: ${passkey.id.substring(0, 16)}…`, getClientIp(req));
+        res.json({ verified: true });
+      });
     });
   } catch (err) {
     return res.status(400).json({ verified: false, error: err instanceof Error ? err.message : 'Authentication failed' });
@@ -186,16 +198,22 @@ authRouter.post('/api/auth/recover', authLimiter, async (req, res) => {
     const newCode = randomBytes(32).toString('base64url');
     const newHash = await bcrypt.hash(newCode, 10);
     setRecoveryCodeHash(user.id, newHash);
-    (req.session as any).userId = user.id;
 
-    // Explicitly save the session
-    req.session.save((err) => {
+    // Regenerate session to ensure Set-Cookie is sent
+    req.session.regenerate((err) => {
       if (err) {
-        console.error('[auth] Recovery session save error:', err);
+        console.error('[auth] Recovery session regenerate error:', err);
         return res.status(500).json({ error: 'Session error' });
       }
-      logAuditEvent(user.id, 'recovered', '', getClientIp(req));
-      res.json({ ok: true, newRecoveryCode: newCode });
+      (req.session as any).userId = user.id;
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('[auth] Recovery session save error:', saveErr);
+          return res.status(500).json({ error: 'Session error' });
+        }
+        logAuditEvent(user.id, 'recovered', '', getClientIp(req));
+        res.json({ ok: true, newRecoveryCode: newCode });
+      });
     });
   } catch (err) {
     logAuditEvent(null, 'recovery.error', String(err), getClientIp(req));

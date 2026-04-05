@@ -23,10 +23,10 @@ A scheduled data collection and monitoring platform powered by a two-stage LangC
 
 Each job run executes two sequential AI stages:
 
-| Stage          | Model  | Purpose                                                                                         |
-| -------------- | ------ | ----------------------------------------------------------------------------------------------- |
-| **Collector**  | Haiku  | Gathers raw data using tools (html_scrape, browser_scrape, api_fetch, rss_fetch, graphql_fetch) |
-| **Editor**     | Haiku  | Writes a polished markdown report with analysis, patterns, and insights from the collected data |
+| Stage         | Model | Purpose                                                                                         |
+| ------------- | ----- | ----------------------------------------------------------------------------------------------- |
+| **Collector** | Haiku | Gathers raw data using tools (html_scrape, browser_scrape, api_fetch, rss_fetch, graphql_fetch) |
+| **Editor**    | Haiku | Writes a polished markdown report with analysis, patterns, and insights from the collected data |
 
 If a stage fails, its error payload wraps the previous stage's output so downstream stages can still attempt partial processing.
 
@@ -34,10 +34,10 @@ If a stage fails, its error payload wraps the previous stage's output so downstr
 
 Each stage reads its model ID from an environment variable with a sensible default:
 
-| Variable              | Default                                       |
-| --------------------- | --------------------------------------------- |
-| `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Variable             | Default                                       |
+| -------------------- | --------------------------------------------- |
+| `COLLECTOR_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `EDITOR_MODEL_ID`    | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 ---
 
@@ -66,12 +66,14 @@ On first launch, Croniq will prompt you to create an account:
 To register a passkey on a new device (work laptop, phone, etc.) that doesn't share your passkey ecosystem:
 
 **On your existing device:**
+
 1. Log in to Croniq
 2. Open "Manage Passkeys" from the navigation menu
 3. Click "📱 Generate code for new device"
 4. A 6-digit code will be displayed (valid for 5 minutes)
 
 **On your new device:**
+
 1. Navigate to Croniq registration page
 2. Enter your email address
 3. Enter the 6-digit device code
@@ -204,6 +206,7 @@ server {
 > **`X-Forwarded-Proto` is required.** Express uses it (via `trust proxy`) to set `req.secure = true`. Without it, `express-session` will not send the `Set-Cookie` header for secure cookies, causing all logins to fail with 401 immediately after the passkey ceremony completes.
 
 After editing nginx config:
+
 ```bash
 sudo nginx -t && sudo nginx -s reload
 ```
@@ -413,18 +416,18 @@ The AI agent compares against previous runs to detect trends like memory leaks, 
 
 Create a `.env` file in the project root (see `.env.example` for template):
 
-| Variable              | Default                                       | Description                        |
-| --------------------- | --------------------------------------------- | ---------------------------------- |
-| `PORT`                | `3001`                                        | HTTP server port                   |
-| `DATA_DIR`            | `./data`                                      | SQLite database directory          |
-| `SESSION_SECRET`      | _(required)_                                  | Secret for session encryption      |
-| `CORS_ORIGIN`         | `http://localhost:5173` (dev)                 | CORS allowed origin                |
-| `NODE_ENV`            | `development`                                 | Environment mode                   |
-| `RP_ID`               | `localhost`                                   | WebAuthn Relying Party ID          |
-| `ORIGIN`              | `http://localhost:5173`                       | WebAuthn origin URL                |
-| `AWS_REGION`          | `us-east-1`                                   | AWS region for Bedrock             |
-| `COLLECTOR_MODEL_ID`  | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Collector stage model              |
-| `EDITOR_MODEL_ID`     | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Editor stage model                 |
+| Variable             | Default                                       | Description                   |
+| -------------------- | --------------------------------------------- | ----------------------------- |
+| `PORT`               | `3001`                                        | HTTP server port              |
+| `DATA_DIR`           | `./data`                                      | SQLite database directory     |
+| `SESSION_SECRET`     | _(required)_                                  | Secret for session encryption |
+| `CORS_ORIGIN`        | `http://localhost:5173` (dev)                 | CORS allowed origin           |
+| `NODE_ENV`           | `development`                                 | Environment mode              |
+| `RP_ID`              | `localhost`                                   | WebAuthn Relying Party ID     |
+| `ORIGIN`             | `http://localhost:5173`                       | WebAuthn origin URL           |
+| `AWS_REGION`         | `us-east-1`                                   | AWS region for Bedrock        |
+| `COLLECTOR_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Collector stage model         |
+| `EDITOR_MODEL_ID`    | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Editor stage model            |
 
 ### Required Environment Variables
 
@@ -437,6 +440,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### AWS Credentials
 
 AWS Bedrock credentials are required for the AI pipeline. Configure via:
+
 - Standard AWS credential chain (`~/.aws/credentials`, environment variables)
 - IAM role (EC2/ECS)
 - IAM Roles Anywhere (recommended for Pi — see below for keyless auth setup)
@@ -681,32 +685,32 @@ ssh kali "chmod 600 ~/.aws/pi.key && pm2 restart croniq"
 
 ### Backend
 
-| Layer                | Technology                                      |
-| -------------------- | ----------------------------------------------- |
-| **Runtime**          | Node.js 22, TypeScript 5                        |
-| **Framework**        | Express 4                                       |
-| **Authentication**   | WebAuthn (SimpleWebAuthn), Express Session      |
-| **Security**         | CSRF protection (csrf-csrf), rate limiting      |
-| **AI Pipeline**      | LangChain.js, AWS Bedrock (Claude Haiku 4.5)    |
-| **Scheduling**       | node-cron                                       |
-| **Database**         | SQLite (better-sqlite3, WAL mode)               |
-| **Scraping**         | cheerio (static HTML), Playwright (JS-rendered) |
-| **HTTP Client**      | native fetch                                    |
-| **Feed Parsing**     | rss-parser                                      |
-| **Validation**       | Zod                                             |
-| **Process Manager**  | PM2 (production)                                |
+| Layer               | Technology                                      |
+| ------------------- | ----------------------------------------------- |
+| **Runtime**         | Node.js 22, TypeScript 5                        |
+| **Framework**       | Express 4                                       |
+| **Authentication**  | WebAuthn (SimpleWebAuthn), Express Session      |
+| **Security**        | CSRF protection (csrf-csrf), rate limiting      |
+| **AI Pipeline**     | LangChain.js, AWS Bedrock (Claude Haiku 4.5)    |
+| **Scheduling**      | node-cron                                       |
+| **Database**        | SQLite (better-sqlite3, WAL mode)               |
+| **Scraping**        | cheerio (static HTML), Playwright (JS-rendered) |
+| **HTTP Client**     | native fetch                                    |
+| **Feed Parsing**    | rss-parser                                      |
+| **Validation**      | Zod                                             |
+| **Process Manager** | PM2 (production)                                |
 
 ### Frontend
 
-| Layer           | Technology                                |
-| --------------- | ----------------------------------------- |
-| **Framework**   | React 18                                  |
-| **Build Tool**  | Vite 5                                    |
-| **Styling**     | Tailwind CSS v3 (utility-first)           |
-| **Icons**       | lucide-react                              |
-| **Date/Time**   | date-fns                                  |
-| **WebAuthn**    | @simplewebauthn/browser                   |
-| **Fonts**       | Google Fonts (Geist Mono + custom pairing) |
+| Layer          | Technology                                 |
+| -------------- | ------------------------------------------ |
+| **Framework**  | React 18                                   |
+| **Build Tool** | Vite 5                                     |
+| **Styling**    | Tailwind CSS v3 (utility-first)            |
+| **Icons**      | lucide-react                               |
+| **Date/Time**  | date-fns                                   |
+| **WebAuthn**   | @simplewebauthn/browser                    |
+| **Fonts**      | Google Fonts (Geist Mono + custom pairing) |
 
 ### Architecture Patterns
 

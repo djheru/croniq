@@ -82,6 +82,11 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
     // Don't set domain - let browser infer it from the request origin
   },
   getTokenFromRequest: req => req.headers['x-csrf-token'] as string,
+  skipCsrfProtection: (req) => {
+    const adminKey = req.headers['x-admin-key'];
+    const isLoopback = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    return typeof adminKey === 'string' && isLoopback && adminKey === process.env.SESSION_SECRET;
+  },
 });
 
 app.get('/api/csrf-token', (req, res) => res.json({ token: generateToken(req, res, true) }));

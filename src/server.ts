@@ -39,13 +39,24 @@ app.use(session({
   secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: IS_PROD, maxAge: 30 * 24 * 60 * 60 * 1000 },
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: IS_PROD,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    domain: IS_PROD ? 'croniq.local' : undefined
+  },
 }));
 
 const { generateToken, doubleCsrfProtection } = doubleCsrf({
   getSecret: () => process.env.SESSION_SECRET!,
   cookieName: '__csrf',
-  cookieOptions: { httpOnly: true, sameSite: 'lax' as const, secure: IS_PROD },
+  cookieOptions: {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: IS_PROD,
+    domain: IS_PROD ? 'croniq.local' : undefined
+  },
   getTokenFromRequest: req => req.headers['x-csrf-token'] as string,
 });
 

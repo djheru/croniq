@@ -305,13 +305,15 @@ async function seed() {
       headers: adminHeaders,
       body: JSON.stringify(job),
     });
-    const data = await res.json();
+    const text = await res.text();
     if (res.ok) {
       console.log(
         `  ✓ ${job.name} (${job.sources.length} source${job.sources.length !== 1 ? "s" : ""})`,
       );
     } else {
-      console.error(`  ✗ ${job.name}:`, data.error);
+      let errMsg: string;
+      try { errMsg = JSON.parse(text).error ?? text; } catch { errMsg = `HTTP ${res.status} — ${text.slice(0, 120)}`; }
+      console.error(`  ✗ ${job.name}:`, errMsg);
     }
   }
 

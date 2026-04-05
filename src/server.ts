@@ -86,7 +86,12 @@ app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders:
 const PUBLIC_API_PATHS = ['/auth/', '/csrf-token', '/health'];
 app.use('/api', (req, res, next) => {
   if (PUBLIC_API_PATHS.some(p => req.path.startsWith(p))) return next();
-  if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!req.session.userId) {
+    console.log('[auth] 401 Unauthorized - No session userId for:', req.method, req.path);
+    console.log('[auth] Session ID:', req.sessionID);
+    console.log('[auth] Session data:', req.session);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   next();
 });
 

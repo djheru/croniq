@@ -765,7 +765,7 @@ JOB_CATEGORIES['weather'] = (): JobPayload => ({
       name: 'NWS Phoenix Forecast',
       config: {
         type: 'api',
-        url: 'https://api.weather.gov/gridpoints/PSR/173,58/forecast',
+        url: 'https://api.weather.gov/gridpoints/PSR/169,52/forecast',
         headers: NWS_HEADERS,
       },
     },
@@ -773,7 +773,7 @@ JOB_CATEGORIES['weather'] = (): JobPayload => ({
       name: 'NWS Delta County Forecast',
       config: {
         type: 'api',
-        url: 'https://api.weather.gov/gridpoints/MQT/109,79/forecast',
+        url: 'https://api.weather.gov/gridpoints/MQT/183,36/forecast',
         headers: NWS_HEADERS,
       },
     },

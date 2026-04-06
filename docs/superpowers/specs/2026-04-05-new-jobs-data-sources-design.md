@@ -176,8 +176,8 @@ Compare to previous runs:
 
 | Source | Type | URL |
 |--------|------|-----|
-| NWS Phoenix Forecast | API | `https://api.weather.gov/gridpoints/PSR/173,58/forecast` |
-| NWS Delta County Forecast | API | `https://api.weather.gov/gridpoints/MQT/109,79/forecast` |
+| NWS Phoenix Forecast | API | `https://api.weather.gov/gridpoints/PSR/169,52/forecast` |
+| NWS Delta County Forecast | API | `https://api.weather.gov/gridpoints/MQT/183,36/forecast` |
 | NWS Phoenix Alerts | API | `https://api.weather.gov/alerts/active?point=33.35,-111.79` |
 | NWS Delta County Alerts | API | `https://api.weather.gov/alerts/active?point=45.77,-86.55` |
 

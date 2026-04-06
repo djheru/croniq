@@ -31,6 +31,10 @@ const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const UPDATE_NEWS = args.includes('--update-news');
 const categoryIdx = args.indexOf('--category');
+if (categoryIdx !== -1 && !args[categoryIdx + 1]) {
+  console.error('[add-jobs] --category requires a value');
+  process.exit(1);
+}
 const CATEGORY = categoryIdx !== -1 ? args[categoryIdx + 1] : undefined;
 
 if (UPDATE_NEWS && CATEGORY) {
@@ -616,15 +620,16 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  // Determine which categories to process
-  const categoriesToProcess = CATEGORY
-    ? { [CATEGORY]: JOB_CATEGORIES[CATEGORY] }
-    : JOB_CATEGORIES;
-
+  // Validate category before use — otherwise buildPayload() would throw a TypeError
   if (CATEGORY && !JOB_CATEGORIES[CATEGORY]) {
     console.error(`[add-jobs] Unknown category: "${CATEGORY}". Available: ${Object.keys(JOB_CATEGORIES).join(', ')}`);
     process.exit(1);
   }
+
+  // Determine which categories to process
+  const categoriesToProcess = CATEGORY
+    ? { [CATEGORY]: JOB_CATEGORIES[CATEGORY] }
+    : JOB_CATEGORIES;
 
   // Process each job category
   for (const [key, buildPayload] of Object.entries(categoriesToProcess)) {

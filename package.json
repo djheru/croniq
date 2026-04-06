@@ -13,7 +13,8 @@
     "test:watch": "node ./node_modules/.bin/jest --config jest.config.cjs --watch",
     "db:export": "tsx scripts/export.ts",
     "db:import": "tsx scripts/import.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "db:add-jobs": "tsx scripts/add-jobs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3",

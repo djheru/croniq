@@ -606,7 +606,15 @@ const main = async (): Promise<void> => {
   if (DRY_RUN) console.log('[add-jobs] DRY RUN — no changes will be made\n');
 
   // Fetch existing jobs for idempotency checks
-  const existingJobs = await api.get<Job[]>('/jobs');
+  let existingJobs: Job[];
+  try {
+    existingJobs = await api.get<Job[]>('/jobs');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[add-jobs] Could not reach API at ${CRONIQ_URL} — ${msg}`);
+    console.error('[add-jobs] Check that the server is running and CRONIQ_URL is correct.');
+    process.exit(1);
+  }
   const existingNames = new Set(existingJobs.map((j) => j.name));
   console.log(`  Found ${existingJobs.length} existing jobs\n`);
 
@@ -694,12 +702,17 @@ const main = async (): Promise<void> => {
 
   // Also update mainstream news (unless filtering by category)
   if (!CATEGORY) {
-    const newsResult = await updateMainstreamNews(existingJobs);
-    results.push({
-      name: MAINSTREAM_NEWS_NAME,
-      status: newsResult.status === 'not-found' ? 'failed' : newsResult.status,
-      message: newsResult.message,
-    });
+    try {
+      const newsResult = await updateMainstreamNews(existingJobs);
+      results.push({
+        name: MAINSTREAM_NEWS_NAME,
+        status: newsResult.status === 'not-found' ? 'failed' : newsResult.status,
+        message: newsResult.message,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'failed', message: msg });
+    }
   }
 
   printResults(results);

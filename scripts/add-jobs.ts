@@ -132,22 +132,21 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       },
     ],
     jobPrompt:
-      'Analyze progressive and investigative news across six publications spanning investigative journalism (ProPublica, The Intercept), political commentary (Mother Jones, The Nation), democratic socialist perspective (Jacobin), and grassroots progressive coverage (Common Dreams).\n\n' +
-      'For each story:\n' +
-      '- Headline, publication time, source attribution\n' +
-      '- 1-2 sentence summary\n' +
-      '- Topic classification: Policy, Labor, Climate, Justice, Healthcare, Economy, Foreign Policy, Civil Rights, or Other\n\n' +
-      'Cross-source analysis:\n' +
-      '- Identify stories covered by multiple outlets — note how framing differs between investigative vs. commentary vs. grassroots sources\n' +
-      '- Flag major investigative pieces (ProPublica, The Intercept) that other outlets haven\'t yet picked up\n' +
-      '- Detect emerging policy debates or legislative developments that multiple sources are tracking\n' +
-      '- Note which issues are getting disproportionate attention vs. being underreported\n\n' +
-      'Synthesized view:\n' +
-      '- What are the dominant progressive concerns right now?\n' +
-      '- Are there stories that mainstream media is covering differently or ignoring?\n' +
-      '- Track how stories evolve across runs — which narratives are gaining or losing momentum?\n' +
-      '- Highlight any direct calls to action or mobilization efforts\n\n' +
-      'Compare against previous runs to identify story persistence, new developments, and shifting editorial focus.',
+      'Curate progressive and investigative news across six publications: ProPublica, The Intercept (investigative), Mother Jones, The Nation (commentary), Jacobin (democratic socialist), and Common Dreams (grassroots).\n\n' +
+      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to guide which stories and threads to prioritize in this analysis.\n\n' +
+      '**Article Listing (primary output):**\n' +
+      'For each noteworthy article, output:\n' +
+      '- **[Headline](link)** — *Source* · Topic tag (Policy, Labor, Climate, Justice, Healthcare, Economy, Foreign Policy, Civil Rights)\n' +
+      '- One sentence describing why this article matters\n\n' +
+      'Group articles by topic. Prioritize investigative exclusives (ProPublica, The Intercept) and stories covered by 3+ outlets. Include the direct link for every article.\n\n' +
+      '**Curation Notes (brief):**\n' +
+      '- Which stories appear across multiple outlets? (1-2 sentences on framing differences)\n' +
+      '- Any major investigative pieces not yet picked up by other sources?\n' +
+      '- Stories that mainstream media is covering differently or ignoring?\n\n' +
+      '**Suggestions for Next Run:**\n' +
+      '- Name 3-5 developing stories or threads to watch for in the next cycle\n' +
+      '- Flag any emerging policy debates or legislative timelines to track\n' +
+      '- Note investigative series that may have follow-up pieces coming',
   }),
 
   crypto: () => ({
@@ -180,24 +179,23 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       // },
     ],
     jobPrompt:
-      'Analyze crypto market intelligence from three news sources and the Fear & Greed Index.\n\n' +
-      'Market Sentiment:\n' +
-      '- Current Fear & Greed Index value and classification (Extreme Fear, Fear, Neutral, Greed, Extreme Greed)\n' +
-      '- How has sentiment shifted since the previous run?\n' +
-      '- Does the news narrative align with or contradict the sentiment index?\n\n' +
-      'News Analysis (The Block, CoinDesk, Decrypt):\n' +
-      '- Identify the 5-8 most significant stories across all sources\n' +
-      '- Classify each: Regulatory, DeFi, Infrastructure, Market Movement, Security/Hack, Institutional Adoption, or Other\n' +
-      '- Flag any stories about regulatory actions, exchange issues, or security breaches as HIGH PRIORITY\n' +
-      '- Note which stories appear across multiple outlets (consensus narratives) vs. single-source exclusives\n\n' +
-      'Market Context:\n' +
-      '- Correlate news developments with the sentiment indicator\n' +
-      '- Identify any emerging trends: new protocol launches, governance proposals, ecosystem shifts\n' +
-      '- Flag stories that could have outsized market impact (regulatory rulings, ETF decisions, major hacks)\n\n' +
-      'Compare to previous runs:\n' +
-      '- Track developing stories and their progression\n' +
-      '- Note sentiment trend direction (improving, worsening, stable)\n' +
-      '- Identify stories that have gone from single-source to multi-source coverage (gaining momentum)',
+      'Curate crypto market intelligence from three news sources (The Block, CoinDesk, Decrypt) and the Fear & Greed Index.\n\n' +
+      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to prioritize which stories and trends to highlight.\n\n' +
+      '**Sentiment Snapshot:**\n' +
+      '- Fear & Greed Index: value, classification (Extreme Fear → Extreme Greed), direction since last run\n\n' +
+      '**Article Listing (primary output):**\n' +
+      'For each significant article, output:\n' +
+      '- **[Headline](link)** — *Source* · Tag (Regulatory, DeFi, Infrastructure, Market Movement, Security/Hack, Institutional Adoption)\n' +
+      '- One sentence on why it matters\n' +
+      '- Mark regulatory actions, exchange issues, or security breaches as 🔴 HIGH PRIORITY\n\n' +
+      'Group by tag. Prioritize stories appearing in multiple outlets. Include the direct link for every article.\n\n' +
+      '**Curation Notes (brief):**\n' +
+      '- Does the news narrative align with or contradict the sentiment index? (1-2 sentences)\n' +
+      '- Any stories with outsized market impact potential? (regulatory rulings, ETF decisions, major hacks)\n\n' +
+      '**Suggestions for Next Run:**\n' +
+      '- Name 3-5 developing stories to track (regulatory timelines, protocol upgrades, institutional moves)\n' +
+      '- Note sentiment trend direction to watch\n' +
+      '- Flag any stories gaining multi-source momentum',
   }),
 
   aws: () => ({
@@ -234,23 +232,22 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       },
     ],
     jobPrompt:
-      'Analyze the AWS serverless and TypeScript ecosystem from official AWS sources, community thought leaders, and key library releases.\n\n' +
-      'Categorize each item:\n' +
-      '- **AWS Service Updates**: New features, region expansions, pricing changes for Lambda, API Gateway, DynamoDB, EventBridge, SQS, Step Functions, Bedrock, CDK\n' +
-      '- **Best Practices**: Architecture patterns, performance optimization, cost reduction techniques\n' +
-      '- **TypeScript Ecosystem**: Language features, compiler updates, type system improvements\n' +
-      '- **Library Releases**: New versions of Powertools, CDK constructs, Middy, or other serverless tooling\n' +
-      '- **Community Insights**: Opinions, benchmarks, and real-world experience reports from practitioners\n\n' +
-      'Prioritize for a TypeScript/CDK developer:\n' +
-      '- Flag any breaking changes in TypeScript, CDK, or Powertools as HIGH PRIORITY\n' +
-      '- Highlight Lambda runtime updates (Node.js version support, ARM64 improvements)\n' +
-      '- Note Bedrock-specific updates (new models, pricing, API changes)\n' +
-      '- Call out CDK construct library additions or deprecations\n\n' +
-      'Synthesis:\n' +
-      '- What are the emerging serverless patterns this week?\n' +
-      '- Are there cost optimization opportunities mentioned across sources?\n' +
-      '- Any convergence between AWS announcements and community reactions?\n\n' +
-      'Compare to previous runs to track announcement cadence, identify follow-up posts, and note community response to major announcements.',
+      'Curate the AWS serverless and TypeScript ecosystem from official AWS sources, community thought leaders, and key library releases.\n\n' +
+      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to prioritize which announcements, releases, or discussions to highlight.\n\n' +
+      '**Article & Release Listing (primary output):**\n' +
+      'For each noteworthy item, output:\n' +
+      '- **[Title](link)** — *Source* · Tag (AWS Service Update, Best Practice, TypeScript Ecosystem, Library Release, Community Insight)\n' +
+      '- One sentence on what changed or why it matters to a TypeScript/CDK developer\n' +
+      '- Mark breaking changes in TypeScript, CDK, or Powertools as 🔴 HIGH PRIORITY\n\n' +
+      'Group by tag. Prioritize: breaking changes > Bedrock updates > Lambda runtime changes > CDK constructs > community posts. Include the direct link for every item.\n\n' +
+      '**Curation Notes (brief):**\n' +
+      '- Any breaking changes or required dependency bumps? (1-2 sentences)\n' +
+      '- Notable convergence between AWS announcements and community reactions?\n' +
+      '- Cost optimization opportunities mentioned across sources?\n\n' +
+      '**Suggestions for Next Run:**\n' +
+      '- Name 3-5 releases, RFCs, or announcements to track for follow-up\n' +
+      '- Flag any migration guides or deprecation timelines to watch\n' +
+      '- Note library pre-releases that may hit stable soon',
   }),
 
   music: () => ({
@@ -279,25 +276,22 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       },
     ],
     jobPrompt:
-      'Curate the house music scene from four key electronic music publications.\n\n' +
-      'New Music & Releases:\n' +
-      '- Notable new releases, EPs, and albums in the house music spectrum (deep house, tech house, progressive house, afro house, melodic house)\n' +
-      '- Label activity: which labels are releasing? Note output from key labels (Defected, Anjunadeep, Drumcode, Dirtybird, Trax Records, etc.)\n' +
-      '- Highlight debut releases or breakout tracks getting attention\n\n' +
-      'DJ & Artist Activity:\n' +
-      '- Resident Advisor podcast: who\'s been featured? Genre and style notes\n' +
-      '- Tour announcements, residency updates, festival bookings\n' +
-      '- Emerging artists getting editorial attention for the first time\n' +
-      '- Producer collaborations or notable remixes\n\n' +
-      'Scene & Culture:\n' +
-      '- Festival announcements or lineup reveals\n' +
-      '- Venue openings/closings, club culture developments\n' +
-      '- Industry news: streaming platform changes, vinyl market updates\n' +
-      '- Awards, milestones, retrospectives\n\n' +
-      'Compare to previous runs:\n' +
-      '- Track which artists are appearing repeatedly (momentum builders)\n' +
-      '- Note new names appearing for the first time\n' +
-      '- Identify developing stories (festival lineups filling out, album rollout campaigns)',
+      'Curate the house music scene from four key electronic music publications: Resident Advisor, DJ Mag, and Magnetic Magazine.\n\n' +
+      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track artists, releases, and events flagged previously.\n\n' +
+      '**Article & Release Listing (primary output):**\n' +
+      'For each noteworthy item, output:\n' +
+      '- **[Title](link)** — *Source* · Tag (New Release, DJ Mix/Podcast, Festival/Event, Scene & Culture, Artist Feature)\n' +
+      '- One sentence on what it is and why it\'s notable\n' +
+      '- Note label affiliations for releases (Defected, Anjunadeep, Drumcode, Dirtybird, Trax Records, etc.)\n\n' +
+      'Group by tag. Prioritize: new releases and mixes > festival announcements > scene news. Sub-genres to note: deep house, tech house, progressive house, afro house, melodic house. Include the direct link for every item.\n\n' +
+      '**Curation Notes (brief):**\n' +
+      '- Which artists are building momentum across multiple articles? (1-2 sentences)\n' +
+      '- Any debut releases or emerging artists getting first-time editorial coverage?\n' +
+      '- RA podcast feature: who was featured, genre/style notes\n\n' +
+      '**Suggestions for Next Run:**\n' +
+      '- Name 3-5 artists, labels, or events to watch for follow-up coverage\n' +
+      '- Flag upcoming release dates or festival lineup announcements\n' +
+      '- Note any developing album rollout campaigns or residency announcements',
   }),
 
   business: () => ({
@@ -334,27 +328,22 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       // },
     ],
     jobPrompt:
-      'Analyze business and market news from four major financial media sources, running on weekday market hours.\n\n' +
-      'Market Overview:\n' +
-      '- Identify the top market-moving stories of the session\n' +
-      '- Classify each: Earnings, Fed/Monetary Policy, Sector Movement, M&A, IPO/Offering, Economic Data, Geopolitical, or Other\n' +
-      '- Flag any stories about Fed rate decisions, major earnings surprises, or market circuit breakers as HIGH PRIORITY\n\n' +
-      'Sector Analysis:\n' +
-      '- Which sectors are getting the most coverage? (Tech, Finance, Healthcare, Energy, Consumer, Industrial)\n' +
-      '- Note any sector rotation signals — coverage shifting from growth to value or vice versa\n' +
-      '- Identify company-specific stories with broader market implications\n\n' +
-      'Economic Context:\n' +
-      '- Employment, inflation, GDP, or housing data releases\n' +
-      '- Trade policy or tariff developments\n' +
-      '- Consumer confidence or spending indicators\n\n' +
-      'Cross-Source Comparison:\n' +
-      '- Do MarketWatch and CNBC agree on the day\'s narrative, or are they emphasizing different stories?\n' +
-      '- Note where Seeking Alpha\'s analyst community diverges from mainstream financial media\n' +
-      '- Identify consensus vs. contrarian views\n\n' +
-      'Compare to previous runs:\n' +
-      '- Track developing stories (earnings season progression, Fed meeting anticipation)\n' +
-      '- Note shifts in market sentiment over the trading day (morning vs. midday vs. close)\n' +
-      '- Identify stories that have persisted across multiple sessions vs. one-day events',
+      'Curate business and market news from four major financial media sources (MarketWatch, CNBC, WSJ, Seeking Alpha), running on weekday market hours.\n\n' +
+      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track earnings, Fed commentary, and developing market narratives.\n\n' +
+      '**Article Listing (primary output):**\n' +
+      'For each market-moving story, output:\n' +
+      '- **[Headline](link)** — *Source* · Tag (Earnings, Fed/Monetary Policy, Sector Movement, M&A, Economic Data, Geopolitical)\n' +
+      '- One sentence on market impact or significance\n' +
+      '- Mark Fed rate decisions, major earnings surprises, or circuit breakers as 🔴 HIGH PRIORITY\n\n' +
+      'Group by tag. Prioritize: HIGH PRIORITY items > multi-source consensus stories > sector movers. Include the direct link for every article.\n\n' +
+      '**Curation Notes (brief):**\n' +
+      '- What is the dominant market narrative this session? (1-2 sentences)\n' +
+      '- Do sources agree or diverge? Note where Seeking Alpha analysts differ from mainstream coverage\n' +
+      '- Any sector rotation signals? (1 sentence)\n\n' +
+      '**Suggestions for Next Run:**\n' +
+      '- Name 3-5 stories to track (earnings dates, Fed meeting timelines, pending economic data releases)\n' +
+      '- Flag developing narratives that may escalate (trade disputes, regulatory actions)\n' +
+      '- Note market sentiment direction to watch for confirmation or reversal',
   }),
 
   weather: () => ({
@@ -455,29 +444,26 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       },
     ],
     jobPrompt:
-      'Analyze local news for two communities: Phoenix, AZ metro area and Delta County, Michigan (Upper Peninsula).\n\n' +
-      'Organize by location:\n\n' +
+      'Curate local news for two communities: Phoenix, AZ metro area and Delta County, Michigan (Upper Peninsula).\n\n' +
+      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track ongoing council proceedings, investigations, and seasonal events.\n\n' +
+      '**Article Listing (primary output):**\n' +
+      'Organize by location. For each story, output:\n' +
+      '- **[Headline](link)** — *Source* · Topic tag\n' +
+      '- One sentence on local significance\n\n' +
       '**Phoenix Metro (AZCentral, KJZZ):**\n' +
-      '- Top local stories: city council actions, development projects, transportation\n' +
-      '- Public safety: notable incidents, policy changes\n' +
-      '- Education: school district news, university developments\n' +
-      '- Environment: water issues, heat preparedness, air quality, wildfire updates\n' +
-      '- Economy: major employers, real estate trends, tourism\n' +
-      '- Flag any extreme heat advisories, water restrictions, or wildfire evacuations as HIGH PRIORITY\n\n' +
+      'Tags: Government, Development, Water/Drought, Public Safety, Education, Economy, Environment\n' +
+      '- Mark extreme heat advisories, water restrictions, or wildfire evacuations as 🔴 HIGH PRIORITY\n\n' +
       '**Delta County, MI (Daily Press, TV6):**\n' +
-      '- Top local stories: county board actions, community events, school news\n' +
-      '- Natural resources: hunting/fishing seasons, DNR updates, Great Lakes conditions\n' +
-      '- Economy: tourism, small business, UP development projects\n' +
-      '- Weather impacts: road conditions, school closures, lake effect events\n' +
-      '- Flag any severe weather impacts, road closures, or emergency declarations as HIGH PRIORITY\n\n' +
-      'Cross-community insights:\n' +
-      '- Any stories with national implications originating locally?\n' +
-      '- Compare quality of life themes between a major metro and rural community\n' +
-      '- Note seasonal patterns unique to each location\n\n' +
-      'Compare to previous runs:\n' +
-      '- Track developing local stories (council decisions, ongoing investigations, weather events)\n' +
-      '- Note new stories vs. updates on known situations\n' +
-      '- Flag stories that have persisted across multiple runs (community concerns gaining traction)',
+      'Tags: Government, Natural Resources, Economy, Schools, Community, Weather Impact\n' +
+      '- Mark severe weather impacts, road closures, or emergency declarations as 🔴 HIGH PRIORITY\n\n' +
+      'Include the direct link for every article.\n\n' +
+      '**Curation Notes (brief):**\n' +
+      '- Any stories with national implications originating locally? (1-2 sentences)\n' +
+      '- Contrasts between urban Phoenix and rural UP community concerns?\n\n' +
+      '**Suggestions for Next Run:**\n' +
+      '- Name 3-5 developing local stories to track (council votes, ongoing investigations, seasonal events)\n' +
+      '- Flag any scheduled government meetings, public hearings, or community events coming up\n' +
+      '- Note weather patterns or environmental conditions to watch',
   }),
 };
 
@@ -528,23 +514,22 @@ const updateMainstreamNews = async (existingJobs: Job[]): Promise<{ status: 'upd
   const mergedSources = [...newsJob.sources, ...newSources];
 
   const updatedPrompt =
-    'Analyze news coverage across eight major sources spanning wire services (AP), public media (NPR, PBS NewsHour), international perspectives (The Guardian, BBC, Al Jazeera), and US newspapers (Washington Post, New York Times).\n\n' +
-    'For each significant story:\n' +
-    '- Headline, publication time, source attribution\n' +
-    '- 1-2 sentence summary\n' +
-    '- Topic: Politics, Policy, Economy, Justice, Climate, Health, World, Technology, or Other\n\n' +
-    'Cross-source analysis at scale:\n' +
-    '- Identify stories covered by 3+ sources — these are the consensus "major" stories of the cycle\n' +
-    '- Note stories covered by international sources (Guardian, BBC, Al Jazeera) but absent from US sources, and vice versa\n' +
-    '- Compare wire service coverage (AP) against editorial coverage (NYT, WaPo) — how does framing differ?\n' +
-    '- Flag exclusive stories appearing in only one source — are they scoops or niche interests?\n\n' +
-    'Synthesized intelligence:\n' +
-    '- Rank the top 8 stories by combined prominence across all sources\n' +
-    '- What are the dominant news themes across all sources?\n' +
-    '- Identify the "story of the day" — the single development getting the most cross-source attention\n' +
-    '- Geographic blind spots: what regions or topics are underrepresented?\n' +
-    '- Compare US-centric sources vs. international sources on the same events\n\n' +
-    'Compare to previous runs to track story evolution, emergence of new narratives, and the news cycle\'s attention span.';
+    'Curate news coverage across eight major sources: wire services (AP), public media (NPR, PBS NewsHour), international (The Guardian, BBC, Al Jazeera), and US newspapers (Washington Post, New York Times).\n\n' +
+    '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track developing stories and watch items.\n\n' +
+    '**Article Listing (primary output):**\n' +
+    'For each significant story, output:\n' +
+    '- **[Headline](link)** — *Source* · Tag (Politics, Policy, Economy, Justice, Climate, Health, World, Technology)\n' +
+    '- One sentence on significance\n' +
+    '- Note if covered by 3+ sources (consensus story) or single-source exclusive\n\n' +
+    'Group by topic. Prioritize: consensus stories (3+ sources) > single-source scoops > breaking developments. Include the direct link for every article.\n\n' +
+    '**Curation Notes (brief):**\n' +
+    '- Story of the day: the single development with most cross-source attention (1 sentence)\n' +
+    '- International vs. domestic framing: any stories where BBC/Al Jazeera/Guardian cover differently than US sources? (1-2 sentences)\n' +
+    '- Geographic blind spots: what regions or topics are underrepresented? (1 sentence)\n\n' +
+    '**Suggestions for Next Run:**\n' +
+    '- Name 3-5 developing stories to track in the next news cycle\n' +
+    '- Flag stories that appeared in one source but may spread to others\n' +
+    '- Note any stories losing momentum vs. gaining traction';
 
   if (DRY_RUN) {
     console.log(`  [update-news] Would merge ${newSources.length} new sources: ${newSources.map((s) => s.name).join(', ')}`);

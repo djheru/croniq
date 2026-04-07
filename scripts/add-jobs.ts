@@ -2,10 +2,15 @@
  * Provision additional data collection jobs via the Croniq REST API.
  *
  * Usage:
- *   npm run db:add-jobs                        # create all 7 new jobs + upsert weather
- *   npm run db:add-jobs -- --dry-run            # show what would happen without calling API
- *   npm run db:add-jobs -- --update-news        # only merge sources into the News job
- *   npm run db:add-jobs -- --category crypto    # only create the crypto job
+ *   npm run db:add-jobs                           # create all 7 new jobs + upsert weather
+ *   npm run db:add-jobs -- --dry-run              # show what would happen without calling API
+ *   npm run db:add-jobs -- --update-news          # only merge sources into the News job
+ *   npm run db:add-jobs -- --update-prompts       # PATCH prompts on existing jobs (no source changes)
+ *   npm run db:add-jobs -- --category crypto      # only create/update the crypto job
+ *
+ * Flags can be combined:
+ *   --update-prompts --category crypto            # update only the crypto job's prompt
+ *   --update-prompts --dry-run                    # preview prompt updates
  */
 
 import 'dotenv/config';
@@ -30,6 +35,7 @@ const adminHeaders: Record<string, string> = {
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const UPDATE_NEWS = args.includes('--update-news');
+const UPDATE_PROMPTS = args.includes('--update-prompts');
 const categoryIdx = args.indexOf('--category');
 if (categoryIdx !== -1 && !args[categoryIdx + 1]) {
   console.error('[add-jobs] --category requires a value');
@@ -39,6 +45,10 @@ const CATEGORY = categoryIdx !== -1 ? args[categoryIdx + 1] : undefined;
 
 if (UPDATE_NEWS && CATEGORY) {
   console.error('[add-jobs] --update-news and --category are mutually exclusive');
+  process.exit(1);
+}
+if (UPDATE_NEWS && UPDATE_PROMPTS) {
+  console.error('[add-jobs] --update-news and --update-prompts are mutually exclusive');
   process.exit(1);
 }
 
@@ -513,23 +523,7 @@ const updateMainstreamNews = async (existingJobs: Job[]): Promise<{ status: 'upd
   // Client-side merge: PATCH replaces the sources array, so we combine existing + new
   const mergedSources = [...newsJob.sources, ...newSources];
 
-  const updatedPrompt =
-    'Curate news coverage across eight major sources: wire services (AP), public media (NPR, PBS NewsHour), international (The Guardian, BBC, Al Jazeera), and US newspapers (Washington Post, New York Times).\n\n' +
-    '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track developing stories and watch items.\n\n' +
-    '**Article Listing (primary output):**\n' +
-    'For each significant story, output:\n' +
-    '- **[Headline](link)** — *Source* · Tag (Politics, Policy, Economy, Justice, Climate, Health, World, Technology)\n' +
-    '- One sentence on significance\n' +
-    '- Note if covered by 3+ sources (consensus story) or single-source exclusive\n\n' +
-    'Group by topic. Prioritize: consensus stories (3+ sources) > single-source scoops > breaking developments. Include the direct link for every article.\n\n' +
-    '**Curation Notes (brief):**\n' +
-    '- Story of the day: the single development with most cross-source attention (1 sentence)\n' +
-    '- International vs. domestic framing: any stories where BBC/Al Jazeera/Guardian cover differently than US sources? (1-2 sentences)\n' +
-    '- Geographic blind spots: what regions or topics are underrepresented? (1 sentence)\n\n' +
-    '**Suggestions for Next Run:**\n' +
-    '- Name 3-5 developing stories to track in the next news cycle\n' +
-    '- Flag stories that appeared in one source but may spread to others\n' +
-    '- Note any stories losing momentum vs. gaining traction';
+  const updatedPrompt = buildMainstreamNewsPrompt(mergedSources.length);
 
   if (DRY_RUN) {
     console.log(`  [update-news] Would merge ${newSources.length} new sources: ${newSources.map((s) => s.name).join(', ')}`);
@@ -545,6 +539,124 @@ const updateMainstreamNews = async (existingJobs: Job[]): Promise<{ status: 'upd
   console.log(`  [update-news] Merged ${newSources.length} new sources: ${newSources.map((s) => s.name).join(', ')}`);
   return { status: 'updated', message: `Added ${newSources.length} sources` };
 };
+
+// ─── Update Prompts on Existing Jobs ─────────────────────────────────────────
+
+/**
+ * Map a category key to the job names it might match in the database.
+ * Weather has two possible names depending on whether a prior upsert has happened.
+ */
+const categoryJobNames = (key: string, payloadName: string): string[] => {
+  if (key === 'weather') {
+    return ['Weather — Enhanced Multi-Location', 'Weather — Multi-Location Monitoring'];
+  }
+  return [payloadName];
+};
+
+/**
+ * PATCH prompt-related fields on existing jobs without touching sources or
+ * creating new jobs. Used by --update-prompts to roll updated prompt text out
+ * to jobs already provisioned in the database.
+ *
+ * Also updates the Mainstream News Aggregation job's prompt and description
+ * (without touching its sources) so the link-first style is applied there too.
+ */
+const updatePromptsForExistingJobs = async (
+  existingJobs: Job[],
+  results: JobResult[],
+): Promise<void> => {
+  // Respect --category filter if present
+  const categoriesToProcess = CATEGORY
+    ? { [CATEGORY]: JOB_CATEGORIES[CATEGORY] }
+    : JOB_CATEGORIES;
+
+  for (const [key, buildPayload] of Object.entries(categoriesToProcess)) {
+    const payload = buildPayload();
+    const candidateNames = categoryJobNames(key, payload.name);
+    const existing = existingJobs.find((j) => candidateNames.includes(j.name));
+
+    if (!existing) {
+      results.push({
+        name: payload.name,
+        status: 'skipped',
+        message: `No existing job found (tried: ${candidateNames.join(', ')})`,
+      });
+      continue;
+    }
+
+    if (DRY_RUN) {
+      console.log(`  [~] Would PATCH prompt on: ${existing.name} (${existing.id})`);
+      results.push({ name: existing.name, status: 'updated', message: 'Would update prompt (dry run)' });
+      continue;
+    }
+
+    try {
+      await api.patch<Job>(`/jobs/${existing.id}`, {
+        jobPrompt: payload.jobPrompt,
+        description: payload.description,
+        tags: payload.tags,
+      });
+      console.log(`  [~] ${existing.name} — prompt updated`);
+      results.push({ name: existing.name, status: 'updated', message: `Prompt patched (${existing.id})` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`  [x] ${existing.name}: ${msg}`);
+      results.push({ name: existing.name, status: 'failed', message: msg });
+    }
+  }
+
+  // Also update the Mainstream News Aggregation job's prompt (only when no category filter)
+  if (!CATEGORY) {
+    const newsJob = existingJobs.find((j) => j.name === MAINSTREAM_NEWS_NAME);
+    if (!newsJob) {
+      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'skipped', message: 'Job not found' });
+      return;
+    }
+
+    // Compute the updated prompt using the same source count the job currently has.
+    // The prompt is the same whether we have 3 or 8 sources — it just describes what's there.
+    const promptSourceCount = newsJob.sources.length;
+    const updatedNewsPrompt = buildMainstreamNewsPrompt(promptSourceCount);
+
+    if (DRY_RUN) {
+      console.log(`  [~] Would PATCH prompt on: ${MAINSTREAM_NEWS_NAME} (${newsJob.id})`);
+      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'updated', message: 'Would update prompt (dry run)' });
+      return;
+    }
+
+    try {
+      await api.patch<Job>(`/jobs/${newsJob.id}`, { jobPrompt: updatedNewsPrompt });
+      console.log(`  [~] ${MAINSTREAM_NEWS_NAME} — prompt updated`);
+      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'updated', message: `Prompt patched (${newsJob.id})` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`  [x] ${MAINSTREAM_NEWS_NAME}: ${msg}`);
+      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'failed', message: msg });
+    }
+  }
+};
+
+/**
+ * Build the mainstream news analytical prompt. Extracted so --update-prompts
+ * and --update-news can share the same source of truth.
+ */
+const buildMainstreamNewsPrompt = (sourceCount: number): string =>
+  `Curate news coverage across ${sourceCount} major sources: wire services, public media, international, and US newspapers.\n\n` +
+  '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track developing stories and watch items.\n\n' +
+  '**Article Listing (primary output):**\n' +
+  'For each significant story, output:\n' +
+  '- **[Headline](link)** — *Source* · Tag (Politics, Policy, Economy, Justice, Climate, Health, World, Technology)\n' +
+  '- One sentence on significance\n' +
+  '- Note if covered by 3+ sources (consensus story) or single-source exclusive\n\n' +
+  'Group by topic. Prioritize: consensus stories (3+ sources) > single-source scoops > breaking developments. Include the direct link for every article.\n\n' +
+  '**Curation Notes (brief):**\n' +
+  '- Story of the day: the single development with most cross-source attention (1 sentence)\n' +
+  '- International vs. domestic framing: any stories where international sources cover differently than US sources? (1-2 sentences)\n' +
+  '- Geographic blind spots: what regions or topics are underrepresented? (1 sentence)\n\n' +
+  '**Suggestions for Next Run:**\n' +
+  '- Name 3-5 developing stories to track in the next news cycle\n' +
+  '- Flag stories that appeared in one source but may spread to others\n' +
+  '- Note any stories losing momentum vs. gaining traction';
 
 // ─── Result Tracking ─────────────────────────────────────────────────────────
 
@@ -617,6 +729,15 @@ const main = async (): Promise<void> => {
   if (CATEGORY && !JOB_CATEGORIES[CATEGORY]) {
     console.error(`[add-jobs] Unknown category: "${CATEGORY}". Available: ${Object.keys(JOB_CATEGORIES).join(', ')}`);
     process.exit(1);
+  }
+
+  // Handle --update-prompts mode: PATCH prompt/description/tags on existing jobs
+  // without touching sources, schedule, or creating new jobs. This is how users
+  // apply updated prompt text to jobs already in their database.
+  if (UPDATE_PROMPTS) {
+    await updatePromptsForExistingJobs(existingJobs, results);
+    printResults(results);
+    return;
   }
 
   // Determine which categories to process

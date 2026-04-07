@@ -42,6 +42,7 @@ export async function runJob(jobId: string): Promise<void> {
       rawDataStr,
       job.jobPrompt ?? 'Summarize the collected data.',
       job.name,
+      previousRun?.analysis ?? undefined,
     );
 
     completeRun(run.id, 'complete', contentHash, rawDataStr, analysis, true, inputTokens, outputTokens, Date.now() - startTime, null);

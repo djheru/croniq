@@ -42,9 +42,35 @@ describe('runJob', () => {
 
     expect(mockSetRunStatus).toHaveBeenCalledWith('run1', 'collecting');
     expect(mockSetRunStatus).toHaveBeenCalledWith('run1', 'analyzing');
+    expect(mockAnalyze).toHaveBeenCalledWith(
+      expect.any(String),
+      'Summarize this',
+      'Test Job',
+      undefined, // no previous run
+    );
     expect(mockCompleteRun).toHaveBeenCalledWith(
       'run1', 'complete', expect.any(String), expect.any(String),
       '# Report', true, 100, 50, expect.any(Number), null
+    );
+  });
+
+  it('passes previous run analysis to Bedrock when content has changed', async () => {
+    mockCollectSources.mockResolvedValue([{ source: 'src', data: { items: [1, 2, 3] } }]);
+    mockAnalyze.mockResolvedValue({ analysis: '# New report', inputTokens: 120, outputTokens: 60 });
+    mockGetLatestCompletedRun.mockReturnValue({
+      id: 'prev',
+      status: 'complete',
+      contentHash: 'different-hash',
+      analysis: '# Previous report\n\n## Suggestions for Next Run\n- Watch for X',
+    } as any);
+
+    await runJob('j1');
+
+    expect(mockAnalyze).toHaveBeenCalledWith(
+      expect.any(String),
+      'Summarize this',
+      'Test Job',
+      '# Previous report\n\n## Suggestions for Next Run\n- Watch for X',
     );
   });
 

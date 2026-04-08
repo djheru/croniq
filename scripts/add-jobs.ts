@@ -1,16 +1,20 @@
 /**
  * Provision additional data collection jobs via the Croniq REST API.
  *
- * Usage:
- *   npm run db:add-jobs                           # create all 7 new jobs + upsert weather
- *   npm run db:add-jobs -- --dry-run              # show what would happen without calling API
- *   npm run db:add-jobs -- --update-news          # only merge sources into the News job
- *   npm run db:add-jobs -- --update-prompts       # PATCH prompts on existing jobs (no source changes)
- *   npm run db:add-jobs -- --category crypto      # only create/update the crypto job
+ * Modes (mutually exclusive):
+ *   npm run db:add-jobs                          # create all 7 new jobs + upsert weather
+ *   npm run db:add-jobs -- --update-news         # merge new sources into the News job
+ *   npm run db:add-jobs -- --update-prompts      # PATCH prompts on existing jobs (safe; preserves sources)
+ *   npm run db:add-jobs -- --update-all          # PATCH prompts AND sources/schedule/timeout (overwrites UI customizations)
  *
- * Flags can be combined:
- *   --update-prompts --category crypto            # update only the crypto job's prompt
- *   --update-prompts --dry-run                    # preview prompt updates
+ * Modifiers:
+ *   --dry-run                                    # show what would happen without calling API
+ *   --category <name>                            # filter to a single job category
+ *
+ * Common combinations:
+ *   --update-prompts --dry-run                   # preview prompt updates
+ *   --update-all --category crypto               # fully sync only the crypto job
+ *   --update-prompts --category business         # update only business job's prompt
  */
 
 import 'dotenv/config';
@@ -36,6 +40,7 @@ const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const UPDATE_NEWS = args.includes('--update-news');
 const UPDATE_PROMPTS = args.includes('--update-prompts');
+const UPDATE_ALL = args.includes('--update-all');
 const categoryIdx = args.indexOf('--category');
 if (categoryIdx !== -1 && !args[categoryIdx + 1]) {
   console.error('[add-jobs] --category requires a value');
@@ -47,8 +52,9 @@ if (UPDATE_NEWS && CATEGORY) {
   console.error('[add-jobs] --update-news and --category are mutually exclusive');
   process.exit(1);
 }
-if (UPDATE_NEWS && UPDATE_PROMPTS) {
-  console.error('[add-jobs] --update-news and --update-prompts are mutually exclusive');
+const updateModes = [UPDATE_NEWS, UPDATE_PROMPTS, UPDATE_ALL].filter(Boolean).length;
+if (updateModes > 1) {
+  console.error('[add-jobs] --update-news, --update-prompts, and --update-all are mutually exclusive');
   process.exit(1);
 }
 
@@ -64,6 +70,24 @@ const RSS_FIELDS: ('title' | 'link' | 'pubDate' | 'content')[] = ['title', 'link
 const NWS_HEADERS: Record<string, string> = {
   'User-Agent': '(croniq, djheru@gmail.com)',
 };
+
+// ─── Shared Prompt Fragments ─────────────────────────────────────────────────
+//
+// These fragments are concatenated into each news/RSS job prompt to keep
+// formatting and instructions consistent. They are intentionally terse to
+// minimize input token cost — every byte added here multiplies across all runs.
+
+const PROMPT_HEADER_PREVIOUS_CONTEXT =
+  '**Previous suggestions:** If a previous-run suggestions section is provided in context, prioritize the items it flagged.';
+
+const PROMPT_DEDUP_RULE =
+  '**Dedup rule:** If 2+ sources cover the same story, list it ONCE with sources inline (e.g., "[Headline](primary-link) — *Source A, Source B, Source C*"). Never list duplicates separately.';
+
+const PROMPT_FORMAT_RULE =
+  'Format each item on a single line: **[Headline](link)** — *Source(s)* · Tag · Brief 8-12 word note. No multi-line summaries.';
+
+const PROMPT_SUGGESTIONS_FOOTER =
+  '**Suggestions for Next Run:** End your response with a section titled exactly "**Suggestions for Next Run**" containing 3 short bullets (max 15 words each) flagging stories or threads to track in the next cycle.';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -118,45 +142,37 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
     sources: [
       {
         name: 'The Intercept',
-        config: { type: 'rss', url: 'https://theintercept.com/feed/?rss', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://theintercept.com/feed/?rss', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Mother Jones',
-        config: { type: 'rss', url: 'https://www.motherjones.com/feed/', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://www.motherjones.com/feed/', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Jacobin',
-        config: { type: 'rss', url: 'https://jacobin.com/feed', maxItems: 8, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://jacobin.com/feed', maxItems: 5, fields: RSS_FIELDS },
       },
       {
         name: 'The Nation',
-        config: { type: 'rss', url: 'https://www.thenation.com/feed/', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://www.thenation.com/feed/', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'ProPublica',
-        config: { type: 'rss', url: 'https://feeds.propublica.org/propublica/main', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://feeds.propublica.org/propublica/main', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Common Dreams',
-        config: { type: 'rss', url: 'https://www.commondreams.org/feeds/feed.rss', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://www.commondreams.org/feeds/feed.rss', maxItems: 6, fields: RSS_FIELDS },
       },
     ],
     jobPrompt:
-      'Curate progressive and investigative news across six publications: ProPublica, The Intercept (investigative), Mother Jones, The Nation (commentary), Jacobin (democratic socialist), and Common Dreams (grassroots).\n\n' +
-      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to guide which stories and threads to prioritize in this analysis.\n\n' +
-      '**Article Listing (primary output):**\n' +
-      'For each noteworthy article, output:\n' +
-      '- **[Headline](link)** — *Source* · Topic tag (Policy, Labor, Climate, Justice, Healthcare, Economy, Foreign Policy, Civil Rights)\n' +
-      '- One sentence describing why this article matters\n\n' +
-      'Group articles by topic. Prioritize investigative exclusives (ProPublica, The Intercept) and stories covered by 3+ outlets. Include the direct link for every article.\n\n' +
-      '**Curation Notes (brief):**\n' +
-      '- Which stories appear across multiple outlets? (1-2 sentences on framing differences)\n' +
-      '- Any major investigative pieces not yet picked up by other sources?\n' +
-      '- Stories that mainstream media is covering differently or ignoring?\n\n' +
-      '**Suggestions for Next Run:**\n' +
-      '- Name 3-5 developing stories or threads to watch for in the next cycle\n' +
-      '- Flag any emerging policy debates or legislative timelines to track\n' +
-      '- Note investigative series that may have follow-up pieces coming',
+      `Curate the **top 5** progressive/investigative stories from ProPublica, The Intercept, Mother Jones, The Nation, Jacobin, Common Dreams.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+      `**Top 5 Stories:**\n${PROMPT_FORMAT_RULE}\n` +
+      `Topic tags: Policy, Labor, Climate, Justice, Healthcare, Economy, Foreign Policy, Civil Rights.\n` +
+      `Prioritize: investigative exclusives (ProPublica, The Intercept) > multi-outlet consensus > policy developments.\n\n` +
+      `**Brief Note (1-2 sentences):** Dominant theme this cycle, or notable framing divergence between investigative vs. commentary outlets.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 
   crypto: () => ({
@@ -169,15 +185,15 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
     sources: [
       {
         name: 'The Block',
-        config: { type: 'rss', url: 'https://www.theblock.co/rss/all', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://www.theblock.co/rss/all', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'CoinDesk',
-        config: { type: 'rss', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Decrypt',
-        config: { type: 'rss', url: 'https://decrypt.co/feed', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://decrypt.co/feed', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Fear & Greed Index',
@@ -189,23 +205,14 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       // },
     ],
     jobPrompt:
-      'Curate crypto market intelligence from three news sources (The Block, CoinDesk, Decrypt) and the Fear & Greed Index.\n\n' +
-      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to prioritize which stories and trends to highlight.\n\n' +
-      '**Sentiment Snapshot:**\n' +
-      '- Fear & Greed Index: value, classification (Extreme Fear → Extreme Greed), direction since last run\n\n' +
-      '**Article Listing (primary output):**\n' +
-      'For each significant article, output:\n' +
-      '- **[Headline](link)** — *Source* · Tag (Regulatory, DeFi, Infrastructure, Market Movement, Security/Hack, Institutional Adoption)\n' +
-      '- One sentence on why it matters\n' +
-      '- Mark regulatory actions, exchange issues, or security breaches as 🔴 HIGH PRIORITY\n\n' +
-      'Group by tag. Prioritize stories appearing in multiple outlets. Include the direct link for every article.\n\n' +
-      '**Curation Notes (brief):**\n' +
-      '- Does the news narrative align with or contradict the sentiment index? (1-2 sentences)\n' +
-      '- Any stories with outsized market impact potential? (regulatory rulings, ETF decisions, major hacks)\n\n' +
-      '**Suggestions for Next Run:**\n' +
-      '- Name 3-5 developing stories to track (regulatory timelines, protocol upgrades, institutional moves)\n' +
-      '- Note sentiment trend direction to watch\n' +
-      '- Flag any stories gaining multi-source momentum',
+      `Curate the **top 5** crypto stories from The Block, CoinDesk, Decrypt, plus the Fear & Greed Index.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+      `**Sentiment:** One line: Fear & Greed value + classification + direction.\n\n` +
+      `**Top 5 Stories:**\n${PROMPT_FORMAT_RULE}\n` +
+      `Tags: Regulatory, DeFi, Infrastructure, Market Movement, Security/Hack, Institutional Adoption.\n` +
+      `Prefix 🔴 for regulatory actions, exchange issues, or security breaches.\n\n` +
+      `**Brief Note (1 sentence):** Whether news aligns with or contradicts sentiment.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 
   aws: () => ({
@@ -218,11 +225,11 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
     sources: [
       {
         name: 'AWS Compute Blog',
-        config: { type: 'rss', url: 'https://aws.amazon.com/blogs/compute/feed/', maxItems: 8, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://aws.amazon.com/blogs/compute/feed/', maxItems: 5, fields: RSS_FIELDS },
       },
       {
         name: "AWS What's New",
-        config: { type: 'rss', url: 'https://aws.amazon.com/about-aws/whats-new/recent/feed/', maxItems: 15, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://aws.amazon.com/about-aws/whats-new/recent/feed/', maxItems: 8, fields: RSS_FIELDS },
       },
       {
         name: 'Yan Cui (theburningmonk)',
@@ -242,22 +249,14 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       },
     ],
     jobPrompt:
-      'Curate the AWS serverless and TypeScript ecosystem from official AWS sources, community thought leaders, and key library releases.\n\n' +
-      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to prioritize which announcements, releases, or discussions to highlight.\n\n' +
-      '**Article & Release Listing (primary output):**\n' +
-      'For each noteworthy item, output:\n' +
-      '- **[Title](link)** — *Source* · Tag (AWS Service Update, Best Practice, TypeScript Ecosystem, Library Release, Community Insight)\n' +
-      '- One sentence on what changed or why it matters to a TypeScript/CDK developer\n' +
-      '- Mark breaking changes in TypeScript, CDK, or Powertools as 🔴 HIGH PRIORITY\n\n' +
-      'Group by tag. Prioritize: breaking changes > Bedrock updates > Lambda runtime changes > CDK constructs > community posts. Include the direct link for every item.\n\n' +
-      '**Curation Notes (brief):**\n' +
-      '- Any breaking changes or required dependency bumps? (1-2 sentences)\n' +
-      '- Notable convergence between AWS announcements and community reactions?\n' +
-      '- Cost optimization opportunities mentioned across sources?\n\n' +
-      '**Suggestions for Next Run:**\n' +
-      '- Name 3-5 releases, RFCs, or announcements to track for follow-up\n' +
-      '- Flag any migration guides or deprecation timelines to watch\n' +
-      '- Note library pre-releases that may hit stable soon',
+      `Curate the **top 5** AWS serverless / TypeScript ecosystem items from AWS Compute Blog, AWS What's New, theburningmonk, Total TypeScript, TypeScript Blog, Powertools releases.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+      `**Top 5 Items:**\n${PROMPT_FORMAT_RULE}\n` +
+      `Tags: AWS Service Update, TypeScript Ecosystem, Library Release, Best Practice, Community Insight.\n` +
+      `Prefix 🔴 for breaking changes in TypeScript, CDK, or Powertools.\n` +
+      `Prioritize: breaking changes > Bedrock/Lambda runtime updates > CDK constructs > community posts.\n\n` +
+      `**Brief Note (1 sentence):** Most actionable item for a TypeScript/CDK developer this cycle.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 
   music: () => ({
@@ -270,38 +269,30 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
     sources: [
       {
         name: 'Resident Advisor News',
-        config: { type: 'rss', url: 'https://ra.co/xml/news.xml', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://ra.co/xml/news.xml', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Resident Advisor Podcast',
-        config: { type: 'rss', url: 'https://ra.co/xml/podcast.xml', maxItems: 5, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://ra.co/xml/podcast.xml', maxItems: 4, fields: RSS_FIELDS },
       },
       {
         name: 'DJ Mag',
-        config: { type: 'rss', url: 'https://djmag.com/feed', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://djmag.com/feed', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Magnetic Magazine',
-        config: { type: 'rss', url: 'https://www.magneticmag.com/feed/', maxItems: 8, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://www.magneticmag.com/feed/', maxItems: 5, fields: RSS_FIELDS },
       },
     ],
     jobPrompt:
-      'Curate the house music scene from four key electronic music publications: Resident Advisor, DJ Mag, and Magnetic Magazine.\n\n' +
-      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track artists, releases, and events flagged previously.\n\n' +
-      '**Article & Release Listing (primary output):**\n' +
-      'For each noteworthy item, output:\n' +
-      '- **[Title](link)** — *Source* · Tag (New Release, DJ Mix/Podcast, Festival/Event, Scene & Culture, Artist Feature)\n' +
-      '- One sentence on what it is and why it\'s notable\n' +
-      '- Note label affiliations for releases (Defected, Anjunadeep, Drumcode, Dirtybird, Trax Records, etc.)\n\n' +
-      'Group by tag. Prioritize: new releases and mixes > festival announcements > scene news. Sub-genres to note: deep house, tech house, progressive house, afro house, melodic house. Include the direct link for every item.\n\n' +
-      '**Curation Notes (brief):**\n' +
-      '- Which artists are building momentum across multiple articles? (1-2 sentences)\n' +
-      '- Any debut releases or emerging artists getting first-time editorial coverage?\n' +
-      '- RA podcast feature: who was featured, genre/style notes\n\n' +
-      '**Suggestions for Next Run:**\n' +
-      '- Name 3-5 artists, labels, or events to watch for follow-up coverage\n' +
-      '- Flag upcoming release dates or festival lineup announcements\n' +
-      '- Note any developing album rollout campaigns or residency announcements',
+      `Curate the **top 5** house music items from Resident Advisor (news + podcast), DJ Mag, Magnetic Magazine.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+      `**Top 5 Items:**\n${PROMPT_FORMAT_RULE}\n` +
+      `Tags: New Release, DJ Mix, Festival/Event, Artist Feature, Scene & Culture.\n` +
+      `For releases, note label inline (Defected, Anjunadeep, Drumcode, Dirtybird, etc.). Sub-genres: deep, tech, progressive, afro, melodic house.\n` +
+      `Prioritize: new releases > RA podcast features > festival news.\n\n` +
+      `**Brief Note (1 sentence):** Artist or label gaining momentum this cycle.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 
   business: () => ({
@@ -314,19 +305,19 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
     sources: [
       {
         name: 'MarketWatch',
-        config: { type: 'rss', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'CNBC',
-        config: { type: 'rss', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'WSJ Markets',
-        config: { type: 'rss', url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'Seeking Alpha',
-        config: { type: 'rss', url: 'https://seekingalpha.com/feed.xml', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://seekingalpha.com/feed.xml', maxItems: 6, fields: RSS_FIELDS },
       },
       // {
       //   name: 'Finnhub Market News',
@@ -338,22 +329,13 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       // },
     ],
     jobPrompt:
-      'Curate business and market news from four major financial media sources (MarketWatch, CNBC, WSJ, Seeking Alpha), running on weekday market hours.\n\n' +
-      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track earnings, Fed commentary, and developing market narratives.\n\n' +
-      '**Article Listing (primary output):**\n' +
-      'For each market-moving story, output:\n' +
-      '- **[Headline](link)** — *Source* · Tag (Earnings, Fed/Monetary Policy, Sector Movement, M&A, Economic Data, Geopolitical)\n' +
-      '- One sentence on market impact or significance\n' +
-      '- Mark Fed rate decisions, major earnings surprises, or circuit breakers as 🔴 HIGH PRIORITY\n\n' +
-      'Group by tag. Prioritize: HIGH PRIORITY items > multi-source consensus stories > sector movers. Include the direct link for every article.\n\n' +
-      '**Curation Notes (brief):**\n' +
-      '- What is the dominant market narrative this session? (1-2 sentences)\n' +
-      '- Do sources agree or diverge? Note where Seeking Alpha analysts differ from mainstream coverage\n' +
-      '- Any sector rotation signals? (1 sentence)\n\n' +
-      '**Suggestions for Next Run:**\n' +
-      '- Name 3-5 stories to track (earnings dates, Fed meeting timelines, pending economic data releases)\n' +
-      '- Flag developing narratives that may escalate (trade disputes, regulatory actions)\n' +
-      '- Note market sentiment direction to watch for confirmation or reversal',
+      `Curate the **top 5** market-moving stories from MarketWatch, CNBC, WSJ Markets, Seeking Alpha.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+      `**Top 5 Stories:**\n${PROMPT_FORMAT_RULE}\n` +
+      `Tags: Earnings, Fed/Monetary Policy, Sector Movement, M&A, Economic Data, Geopolitical.\n` +
+      `Prefix 🔴 for Fed rate decisions, major earnings surprises, or circuit breakers.\n\n` +
+      `**Brief Note (1 sentence):** Dominant market narrative this session.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 
   weather: () => ({
@@ -418,11 +400,11 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
     sources: [
       {
         name: 'AZCentral',
-        config: { type: 'rss', url: 'https://rssfeeds.azcentral.com/phoenix/home', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://rssfeeds.azcentral.com/phoenix/home', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         name: 'KJZZ NPR (Phoenix)',
-        config: { type: 'rss', url: 'https://kjzz.org/rss.xml', maxItems: 10, fields: RSS_FIELDS },
+        config: { type: 'rss', url: 'https://kjzz.org/rss.xml', maxItems: 6, fields: RSS_FIELDS },
       },
       {
         // Note: browser selectors are fragile and may need updating if site layout changes
@@ -454,26 +436,15 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       },
     ],
     jobPrompt:
-      'Curate local news for two communities: Phoenix, AZ metro area and Delta County, Michigan (Upper Peninsula).\n\n' +
-      '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track ongoing council proceedings, investigations, and seasonal events.\n\n' +
-      '**Article Listing (primary output):**\n' +
-      'Organize by location. For each story, output:\n' +
-      '- **[Headline](link)** — *Source* · Topic tag\n' +
-      '- One sentence on local significance\n\n' +
-      '**Phoenix Metro (AZCentral, KJZZ):**\n' +
-      'Tags: Government, Development, Water/Drought, Public Safety, Education, Economy, Environment\n' +
-      '- Mark extreme heat advisories, water restrictions, or wildfire evacuations as 🔴 HIGH PRIORITY\n\n' +
-      '**Delta County, MI (Daily Press, TV6):**\n' +
-      'Tags: Government, Natural Resources, Economy, Schools, Community, Weather Impact\n' +
-      '- Mark severe weather impacts, road closures, or emergency declarations as 🔴 HIGH PRIORITY\n\n' +
-      'Include the direct link for every article.\n\n' +
-      '**Curation Notes (brief):**\n' +
-      '- Any stories with national implications originating locally? (1-2 sentences)\n' +
-      '- Contrasts between urban Phoenix and rural UP community concerns?\n\n' +
-      '**Suggestions for Next Run:**\n' +
-      '- Name 3-5 developing local stories to track (council votes, ongoing investigations, seasonal events)\n' +
-      '- Flag any scheduled government meetings, public hearings, or community events coming up\n' +
-      '- Note weather patterns or environmental conditions to watch',
+      `Curate local news: **top 3 Phoenix** stories (AZCentral, KJZZ) and **top 3 Delta County MI** stories (Daily Press, TV6).\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+      `**Phoenix Metro (top 3):**\n${PROMPT_FORMAT_RULE}\n` +
+      `Tags: Government, Development, Water, Public Safety, Education, Economy, Environment.\n` +
+      `Prefix 🔴 for extreme heat, water restrictions, wildfire evacuations.\n\n` +
+      `**Delta County, MI (top 3):**\n${PROMPT_FORMAT_RULE}\n` +
+      `Tags: Government, Natural Resources, Economy, Schools, Community, Weather.\n` +
+      `Prefix 🔴 for severe weather, road closures, emergency declarations.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 };
 
@@ -484,24 +455,24 @@ const MAINSTREAM_NEWS_NAME = 'News — Multi-Source Aggregation';
 const ADDITIONAL_NEWS_SOURCES: DataSource[] = [
   {
     name: 'BBC US & Canada',
-    config: { type: 'rss', url: 'http://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml', maxItems: 10, fields: RSS_FIELDS },
+    config: { type: 'rss', url: 'http://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml', maxItems: 6, fields: RSS_FIELDS },
   },
   {
     name: 'NYT Homepage',
-    config: { type: 'rss', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', maxItems: 10, fields: RSS_FIELDS },
+    config: { type: 'rss', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', maxItems: 6, fields: RSS_FIELDS },
   },
   {
     // Note: RSSHub instance — reliability depends on the public instance availability
     name: 'AP News',
-    config: { type: 'rss', url: 'https://rsshub.app/apnews/topics/apf-topnews', maxItems: 10, fields: RSS_FIELDS },
+    config: { type: 'rss', url: 'https://rsshub.app/apnews/topics/apf-topnews', maxItems: 6, fields: RSS_FIELDS },
   },
   {
     name: 'PBS NewsHour',
-    config: { type: 'rss', url: 'https://www.pbs.org/newshour/feeds/rss/headlines', maxItems: 10, fields: RSS_FIELDS },
+    config: { type: 'rss', url: 'https://www.pbs.org/newshour/feeds/rss/headlines', maxItems: 6, fields: RSS_FIELDS },
   },
   {
     name: 'Al Jazeera',
-    config: { type: 'rss', url: 'https://www.aljazeera.com/xml/rss/all.xml', maxItems: 8, fields: RSS_FIELDS },
+    config: { type: 'rss', url: 'https://www.aljazeera.com/xml/rss/all.xml', maxItems: 6, fields: RSS_FIELDS },
   },
 ];
 
@@ -554,16 +525,22 @@ const categoryJobNames = (key: string, payloadName: string): string[] => {
 };
 
 /**
- * PATCH prompt-related fields on existing jobs without touching sources or
- * creating new jobs. Used by --update-prompts to roll updated prompt text out
- * to jobs already provisioned in the database.
- *
- * Also updates the Mainstream News Aggregation job's prompt and description
- * (without touching its sources) so the link-first style is applied there too.
+ * Update mode for in-place job updates.
+ * - 'prompts': PATCH only jobPrompt/description/tags. Safe — never touches sources.
+ * - 'all':     PATCH all fields including sources. Will overwrite UI customizations.
  */
-const updatePromptsForExistingJobs = async (
+type UpdateMode = 'prompts' | 'all';
+
+/**
+ * PATCH fields on existing jobs in-place. Used by --update-prompts (mode=prompts)
+ * and --update-all (mode=all) to apply script changes to jobs already in the DB.
+ *
+ * Also updates the Mainstream News Aggregation job (which lives outside JOB_CATEGORIES).
+ */
+const updateExistingJobs = async (
   existingJobs: Job[],
   results: JobResult[],
+  mode: UpdateMode,
 ): Promise<void> => {
   // Respect --category filter if present
   const categoriesToProcess = CATEGORY
@@ -572,6 +549,7 @@ const updatePromptsForExistingJobs = async (
 
   for (const [key, buildPayload] of Object.entries(categoriesToProcess)) {
     const payload = buildPayload();
+    const fullPayload = { ...SHARED_DEFAULTS, ...payload };
     const candidateNames = categoryJobNames(key, payload.name);
     const existing = existingJobs.find((j) => candidateNames.includes(j.name));
 
@@ -584,20 +562,31 @@ const updatePromptsForExistingJobs = async (
       continue;
     }
 
+    // Build the patch body — always include prompt fields; include sources only in 'all' mode
+    const patchBody: Record<string, unknown> = {
+      jobPrompt: payload.jobPrompt,
+      description: payload.description,
+      tags: payload.tags,
+    };
+    if (mode === 'all') {
+      patchBody.sources = fullPayload.sources;
+      patchBody.schedule = fullPayload.schedule;
+      patchBody.timeoutMs = fullPayload.timeoutMs;
+      patchBody.notifyOnChange = fullPayload.notifyOnChange;
+    }
+
+    const fieldsLabel = mode === 'all' ? 'all fields' : 'prompt';
+
     if (DRY_RUN) {
-      console.log(`  [~] Would PATCH prompt on: ${existing.name} (${existing.id})`);
-      results.push({ name: existing.name, status: 'updated', message: 'Would update prompt (dry run)' });
+      console.log(`  [~] Would PATCH ${fieldsLabel} on: ${existing.name} (${existing.id})`);
+      results.push({ name: existing.name, status: 'updated', message: `Would update ${fieldsLabel} (dry run)` });
       continue;
     }
 
     try {
-      await api.patch<Job>(`/jobs/${existing.id}`, {
-        jobPrompt: payload.jobPrompt,
-        description: payload.description,
-        tags: payload.tags,
-      });
-      console.log(`  [~] ${existing.name} — prompt updated`);
-      results.push({ name: existing.name, status: 'updated', message: `Prompt patched (${existing.id})` });
+      await api.patch<Job>(`/jobs/${existing.id}`, patchBody);
+      console.log(`  [~] ${existing.name} — ${fieldsLabel} updated`);
+      results.push({ name: existing.name, status: 'updated', message: `${fieldsLabel} patched (${existing.id})` });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`  [x] ${existing.name}: ${msg}`);
@@ -605,7 +594,7 @@ const updatePromptsForExistingJobs = async (
     }
   }
 
-  // Also update the Mainstream News Aggregation job's prompt (only when no category filter)
+  // Also update the Mainstream News Aggregation job (only when no category filter)
   if (!CATEGORY) {
     const newsJob = existingJobs.find((j) => j.name === MAINSTREAM_NEWS_NAME);
     if (!newsJob) {
@@ -613,18 +602,20 @@ const updatePromptsForExistingJobs = async (
       return;
     }
 
-    // Compute the updated prompt using the same source count the job currently has.
-    // The prompt is the same whether we have 3 or 8 sources — it just describes what's there.
-    const promptSourceCount = newsJob.sources.length;
-    const updatedNewsPrompt = buildMainstreamNewsPrompt(promptSourceCount);
+    // The mainstream news prompt describes the source count; use whatever the job has now.
+    const updatedNewsPrompt = buildMainstreamNewsPrompt(newsJob.sources.length);
+    const fieldsLabel = mode === 'all' ? 'all fields' : 'prompt';
 
     if (DRY_RUN) {
-      console.log(`  [~] Would PATCH prompt on: ${MAINSTREAM_NEWS_NAME} (${newsJob.id})`);
-      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'updated', message: 'Would update prompt (dry run)' });
+      console.log(`  [~] Would PATCH ${fieldsLabel} on: ${MAINSTREAM_NEWS_NAME} (${newsJob.id})`);
+      results.push({ name: MAINSTREAM_NEWS_NAME, status: 'updated', message: `Would update ${fieldsLabel} (dry run)` });
       return;
     }
 
     try {
+      // For news, we always update only the prompt — sources are managed by --update-news.
+      // Even in 'all' mode, we don't want to clobber the user's source list here because
+      // --update-news has its own merge semantics that preserve manual additions.
       await api.patch<Job>(`/jobs/${newsJob.id}`, { jobPrompt: updatedNewsPrompt });
       console.log(`  [~] ${MAINSTREAM_NEWS_NAME} — prompt updated`);
       results.push({ name: MAINSTREAM_NEWS_NAME, status: 'updated', message: `Prompt patched (${newsJob.id})` });
@@ -637,26 +628,17 @@ const updatePromptsForExistingJobs = async (
 };
 
 /**
- * Build the mainstream news analytical prompt. Extracted so --update-prompts
- * and --update-news can share the same source of truth.
+ * Build the mainstream news prompt. Extracted so --update-prompts and
+ * --update-news can share the same source of truth.
  */
 const buildMainstreamNewsPrompt = (sourceCount: number): string =>
-  `Curate news coverage across ${sourceCount} major sources: wire services, public media, international, and US newspapers.\n\n` +
-  '**Previous Run Context:** If a previous run exists, review its "Suggestions for Next Run" section first. Use those suggestions to track developing stories and watch items.\n\n' +
-  '**Article Listing (primary output):**\n' +
-  'For each significant story, output:\n' +
-  '- **[Headline](link)** — *Source* · Tag (Politics, Policy, Economy, Justice, Climate, Health, World, Technology)\n' +
-  '- One sentence on significance\n' +
-  '- Note if covered by 3+ sources (consensus story) or single-source exclusive\n\n' +
-  'Group by topic. Prioritize: consensus stories (3+ sources) > single-source scoops > breaking developments. Include the direct link for every article.\n\n' +
-  '**Curation Notes (brief):**\n' +
-  '- Story of the day: the single development with most cross-source attention (1 sentence)\n' +
-  '- International vs. domestic framing: any stories where international sources cover differently than US sources? (1-2 sentences)\n' +
-  '- Geographic blind spots: what regions or topics are underrepresented? (1 sentence)\n\n' +
-  '**Suggestions for Next Run:**\n' +
-  '- Name 3-5 developing stories to track in the next news cycle\n' +
-  '- Flag stories that appeared in one source but may spread to others\n' +
-  '- Note any stories losing momentum vs. gaining traction';
+  `Curate the **top 5** stories from ${sourceCount} mainstream sources: wire services, public media, international, US newspapers.\n\n` +
+  `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n${PROMPT_DEDUP_RULE}\n\n` +
+  `**Top 5 Stories:**\n${PROMPT_FORMAT_RULE}\n` +
+  `Tags: Politics, Policy, Economy, Justice, Climate, Health, World, Technology.\n` +
+  `Prioritize stories covered by 3+ sources (consensus). Note source count inline (e.g., "*Guardian, BBC, NYT*").\n\n` +
+  `**Brief Note (1 sentence):** "Story of the day" — the single development with most cross-source attention.\n\n` +
+  `${PROMPT_SUGGESTIONS_FOOTER}`;
 
 // ─── Result Tracking ─────────────────────────────────────────────────────────
 
@@ -731,11 +713,19 @@ const main = async (): Promise<void> => {
     process.exit(1);
   }
 
-  // Handle --update-prompts mode: PATCH prompt/description/tags on existing jobs
-  // without touching sources, schedule, or creating new jobs. This is how users
-  // apply updated prompt text to jobs already in their database.
+  // Handle --update-prompts mode: PATCH only prompt/description/tags on existing jobs.
+  // Safe — never touches sources or schedule. Use this if you have UI customizations.
   if (UPDATE_PROMPTS) {
-    await updatePromptsForExistingJobs(existingJobs, results);
+    await updateExistingJobs(existingJobs, results, 'prompts');
+    printResults(results);
+    return;
+  }
+
+  // Handle --update-all mode: PATCH prompt + sources + schedule + timeout on existing jobs.
+  // More aggressive — overwrites any UI customizations to match the script definitions.
+  // Use this when you want existing jobs to fully match the latest script.
+  if (UPDATE_ALL) {
+    await updateExistingJobs(existingJobs, results, 'all');
     printResults(results);
     return;
   }

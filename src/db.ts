@@ -71,6 +71,8 @@ export interface StatsRow {
   totalInputTokens: number;
   totalOutputTokens: number;
   avgDurationMs: number;
+  /** Hours of history covered by this stats snapshot. 0 = lifetime. */
+  periodHours: number;
 }
 
 // ─── Init / Migrations ────────────────────────────────────────────────────────
@@ -561,7 +563,26 @@ export function listRecentRuns(limit = 10): DbRun[] {
   return rows.map(toRun);
 }
 
-export function getStats(): StatsRow {
+/**
+ * Aggregate stats over the runs table.
+ *
+ * @param periodHours  Restrict to runs within the last N hours. Pass 0 for
+ *                     lifetime totals. Defaults to 24 so the /api/stats
+ *                     endpoint's long-standing "period=24h" contract works.
+ *
+ * Historical bug: Previously this function returned lifetime totals but the
+ * /api/stats endpoint accepted (and ignored) a `period` query parameter,
+ * causing the Croniq Stats job to report lifetime cost as "Daily Cost". The
+ * periodHours parameter makes the window explicit and bounded.
+ */
+export function getStats(periodHours: number = 24): StatsRow {
+  // SQLite datetime('now', '-N hours') gives UTC; started_at is stored as UTC ISO.
+  // When periodHours <= 0, we fall back to lifetime totals for backwards compatibility.
+  const whereClause = periodHours > 0
+    ? `WHERE started_at >= datetime('now', ?)`
+    : '';
+  const params = periodHours > 0 ? [`-${periodHours} hours`] : [];
+
   const row = db.prepare(`
     SELECT
       COUNT(*) as total_runs,
@@ -571,7 +592,9 @@ export function getStats(): StatsRow {
       COALESCE(SUM(output_tokens), 0) as total_output_tokens,
       ROUND(AVG(duration_ms)) as avg_duration_ms
     FROM runs
-  `).get() as Record<string, number>;
+    ${whereClause}
+  `).get(...params) as Record<string, number>;
+
   return {
     totalRuns: row.total_runs ?? 0,
     successRate: row.success_rate ?? 0,
@@ -579,6 +602,7 @@ export function getStats(): StatsRow {
     totalInputTokens: row.total_input_tokens ?? 0,
     totalOutputTokens: row.total_output_tokens ?? 0,
     avgDurationMs: row.avg_duration_ms ?? 0,
+    periodHours: periodHours > 0 ? periodHours : 0,
   };
 }
 
@@ -594,4 +618,15 @@ export function resetForTesting(): void {
     DELETE FROM runs;
     DELETE FROM jobs;
   `);
+}
+
+/**
+ * Test-only helper: override a run's started_at timestamp so we can test
+ * time-window filtering in getStats without racing real clocks.
+ *
+ * Pass an ISO 8601 string (e.g. `new Date(Date.now() - 48 * 3600 * 1000).toISOString()`).
+ */
+export function setRunStartedAtForTesting(runId: string, startedAt: string): void {
+  if (process.env.NODE_ENV !== 'test') throw new Error('setRunStartedAtForTesting only available in test mode');
+  db.prepare('UPDATE runs SET started_at = ? WHERE id = ?').run(startedAt, runId);
 }

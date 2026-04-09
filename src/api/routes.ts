@@ -221,8 +221,27 @@ apiRouter.get('/runs/:id', (req, res) => {
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-apiRouter.get('/stats', (_req, res) => {
-  const stats = getStats();
+/**
+ * Parse the `period` query param into hours.
+ * Accepts: "24h", "48h", "7d", "1d", "lifetime", or a bare number (hours).
+ * Defaults to 24 hours if missing or malformed.
+ * Pass "lifetime" or 0 to get lifetime totals.
+ */
+function parsePeriodHours(value: unknown): number {
+  if (value === undefined || value === null) return 24;
+  const str = String(value).trim().toLowerCase();
+  if (str === 'lifetime' || str === 'all' || str === '0') return 0;
+  const match = str.match(/^(\d+)\s*(h|hr|hour|hours|d|day|days)?$/);
+  if (!match) return 24;
+  const num = parseInt(match[1], 10);
+  if (Number.isNaN(num) || num < 0) return 24;
+  const unit = match[2] ?? 'h';
+  return unit.startsWith('d') ? num * 24 : num;
+}
+
+apiRouter.get('/stats', (req, res) => {
+  const periodHours = parsePeriodHours(req.query.period);
+  const stats = getStats(periodHours);
   // Haiku 4.5 pricing (approximate): $0.80/M input tokens, $4.00/M output tokens
   const estimatedCostUsd =
     (stats.totalInputTokens / 1_000_000) * 0.80 +

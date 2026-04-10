@@ -15,6 +15,9 @@
  *   --update-prompts --dry-run                   # preview prompt updates
  *   --update-all --category crypto               # fully sync only the crypto job
  *   --update-prompts --category business         # update only business job's prompt
+ *
+ * API Keys (optional, set in .env):
+ *   RENTCAST_API_KEY  — Free: 50 calls/month at https://www.rentcast.io/api
  */
 
 import 'dotenv/config';
@@ -444,6 +447,72 @@ const JOB_CATEGORIES: Record<string, () => JobPayload> = {
       `**Delta County, MI (top 3):**\n${PROMPT_FORMAT_RULE}\n` +
       `Tags: Government, Natural Resources, Economy, Schools, Community, Weather.\n` +
       `Prefix 🔴 for severe weather, road closures, emergency declarations.\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
+  }),
+
+  'realestate-az': () => ({
+    name: 'Real Estate — Gilbert AZ (85234)',
+    description: 'Daily for-sale home listings in Gilbert AZ via RentCast API',
+    schedule: '0 8 * * *',
+    timeoutMs: 60000,
+    tags: ['realestate', 'phoenix', 'housing'],
+    notifyOnChange: true,
+    sources: [
+      {
+        name: 'RentCast — 85234 For Sale',
+        config: {
+          type: 'api',
+          url: 'https://api.rentcast.io/v1/listings/sale?zipCode=85234&status=Active&limit=50',
+          headers: { 'X-Api-Key': process.env.RENTCAST_API_KEY ?? '' },
+        },
+      },
+    ],
+    jobPrompt:
+      `Curate for-sale home listings in Gilbert, AZ (85234) from RentCast data.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n\n` +
+      `**Filter criteria:** Only include listings with **3+ bedrooms** and **1,500+ sqft**. Ignore listings that don't meet both criteria.\n\n` +
+      `**Top 5 Listings:**\n` +
+      `For each qualifying listing, output on one line:\n` +
+      `- **$Price** — Beds/Baths/Sqft · Address · Property type · Days on market (if available)\n\n` +
+      `Prioritize: new listings (not in previous run) > price reductions > lowest price per sqft.\n\n` +
+      `**Market Snapshot (2-3 sentences):**\n` +
+      `- How many total active listings meet the 3bed/1500sqft criteria?\n` +
+      `- Price range (low–high) and median for qualifying listings\n` +
+      `- Any notable trends vs. previous run (new listings, delistings, price changes)?\n\n` +
+      `${PROMPT_SUGGESTIONS_FOOTER}`,
+  }),
+
+  'realestate-mi': () => ({
+    name: 'Real Estate — Garden MI (49835)',
+    description: 'Weekly for-sale homes and land listings in Garden MI via RentCast API',
+    schedule: '0 9 * * 1',
+    timeoutMs: 60000,
+    tags: ['realestate', 'michigan', 'housing'],
+    notifyOnChange: true,
+    sources: [
+      {
+        name: 'RentCast — 49835 For Sale (all types)',
+        config: {
+          type: 'api',
+          url: 'https://api.rentcast.io/v1/listings/sale?zipCode=49835&status=Active&limit=50',
+          headers: { 'X-Api-Key': process.env.RENTCAST_API_KEY ?? '' },
+        },
+      },
+    ],
+    jobPrompt:
+      `Curate for-sale listings (homes AND land/lots) in Garden, MI (49835) from RentCast data.\n\n` +
+      `${PROMPT_HEADER_PREVIOUS_CONTEXT}\n\n` +
+      `**All Qualifying Listings (up to 10):**\n` +
+      `Separate into two sections:\n\n` +
+      `**Homes:**\n` +
+      `- **$Price** — Beds/Baths/Sqft · Address · Property type · Days on market\n\n` +
+      `**Land & Lots:**\n` +
+      `- **$Price** — Acreage · Address · Zoning/use notes (if available)\n\n` +
+      `Prioritize: new listings > price reductions > unique properties (waterfront, wooded acreage).\n\n` +
+      `**Market Snapshot (2-3 sentences):**\n` +
+      `- Total active listings in 49835 (homes vs. land breakdown)\n` +
+      `- Price range and any notable changes since previous run\n` +
+      `- Rural market context: how does inventory compare to prior weeks?\n\n` +
       `${PROMPT_SUGGESTIONS_FOOTER}`,
   }),
 };

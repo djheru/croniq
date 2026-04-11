@@ -137,14 +137,19 @@ authRouter.post('/api/auth/login/options', authLimiter, async (req, res) => {
     userVerification: 'required',
   });
   storeChallenge(options.challenge, user.id, 'authentication');
+  console.log(`[auth:login] Stored challenge for ${email}, challenge prefix: ${options.challenge.substring(0, 16)}...`);
   res.json(options);
 });
 
 authRouter.post('/api/auth/login/verify', authLimiter, async (req, res) => {
   try {
     const clientDataJSON = JSON.parse(Buffer.from(req.body.response.clientDataJSON, 'base64url').toString());
+    console.log(`[auth:login] Verify attempt, challenge prefix: ${clientDataJSON.challenge?.substring(0, 16)}...`);
     const challengeRecord = consumeChallenge(clientDataJSON.challenge, 'authentication');
-    if (!challengeRecord) return res.status(400).json({ verified: false, error: 'Invalid or expired challenge' });
+    if (!challengeRecord) {
+      console.log(`[auth:login] Challenge NOT found in DB. challenge: ${clientDataJSON.challenge?.substring(0, 32)}`);
+      return res.status(400).json({ verified: false, error: 'Invalid or expired challenge' });
+    }
     const user = findUserById(challengeRecord.user_id);
     if (!user) return res.status(400).json({ verified: false });
     const passkey = getPasskeyById(req.body.id);

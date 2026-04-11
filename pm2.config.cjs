@@ -20,7 +20,10 @@ module.exports = {
     instances: 1,
     autorestart: true,
     watch: false,
-    max_memory_restart: '1G',
+    // Pi has 8GB RAM. The previous 1G limit triggered frequent PM2 restarts
+    // when multiple Playwright browser jobs ran concurrently (~300MB each).
+    // Each restart loses all in-memory cron schedules, causing missed runs.
+    max_memory_restart: '2G',
     log_date_format: 'YYYY-MM-DD HH:mm:ss',
     merge_logs: true
   }]

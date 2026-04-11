@@ -8,7 +8,10 @@ module.exports = {
     env: {
       NODE_ENV: 'production',
       PORT: process.env.PORT || '3001',
-      DATA_DIR: process.env.DATA_DIR || './data',
+      // Absolute path prevents DATA_DIR from resolving differently based on
+      // which directory pm2 start is run from. The previous relative './data'
+      // caused the server to create a fresh empty DB when started from ~ vs ~/croniq.
+      DATA_DIR: process.env.DATA_DIR || '/home/kali/data',
       SESSION_SECRET: process.env.SESSION_SECRET,
       CORS_ORIGIN: process.env.CORS_ORIGIN,
       RP_ID: process.env.RP_ID || 'localhost',
